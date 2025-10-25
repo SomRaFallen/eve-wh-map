@@ -33,14 +33,12 @@
   <div id="results"></div>
 
 <script>
-// === CONFIGURATION ===
 const CLIENT_ID = '5a40c55151c241e3a007f2562fd4e1dd';
 const REDIRECT_URI = window.location.origin + window.location.pathname;
 const SCOPES = 'esi-killmails.read_killmails.v1 esi-location.read_location.v1';
 const ESI_BASE = 'https://esi.evetech.net/latest';
-const PROXY_URL = 'https://eve-proxy.onrender.com/exchange'; // твой Render URL
+const PROXY_URL = 'https://eve-proxy.onrender.com/exchange';
 
-// === ELEMENTS ===
 const authBtn = document.getElementById('authBtn');
 const logoutBtn = document.getElementById('logoutBtn');
 const authInfo = document.getElementById('authInfo');
@@ -50,7 +48,6 @@ const status = document.getElementById('status');
 const results = document.getElementById('results');
 const container = document.getElementById('map');
 
-// === AUTH FUNCTIONS ===
 function login(){
   const state = Math.random().toString(36).substring(2);
   const url = `https://login.eveonline.com/v2/oauth/authorize?response_type=code&redirect_uri=${encodeURIComponent(REDIRECT_URI)}&client_id=${CLIENT_ID}&scope=${encodeURIComponent(SCOPES)}&state=${state}`;
@@ -114,10 +111,13 @@ authBtn.addEventListener('click', login);
 logoutBtn.addEventListener('click', logout);
 handleAuth();
 
-// === ESI FUNCTIONS ===
 async function esiSearchCharacter(name){
-  const url = `${ESI_BASE}/search?categories=character&search=${encodeURIComponent(name)}&strict=true`;
-  const r = await fetch(url);
+  const url = `${ESI_BASE}/search/?categories=character&search=${encodeURIComponent(name)}&strict=true`;
+  const r = await fetch(url, {
+    headers: {
+      'User-Agent': 'EVE-WH-Map/1.0 (contact@example.com)'
+    }
+  });
   if(!r.ok) throw new Error('Ошибка поиска персонажа: '+r.status);
   const j = await r.json();
   const chars = j.character || [];
@@ -149,7 +149,6 @@ function drawNetwork(nodesArr, edgesArr){
   new vis.Network(container, data, options);
 }
 
-// === SEARCH HANDLER ===
 searchBtn.addEventListener('click', async ()=>{
   const name = charNameInput.value.trim();
   results.innerHTML = '';
