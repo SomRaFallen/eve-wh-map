@@ -15,7 +15,7 @@ button { font-size: 1rem; padding:6px; margin:4px; }
 </head>
 <body>
 <h2>EVE Online — Карта перемещений WH</h2>
-<p class="note">Сохраняйте свои перемещения через вормхолы, редактируйте маршрут, просматривайте структуры.</p>
+<p class="note">Сохраняйте свои перемещения через вормхолы, редактируйте маршрут, просматривайте информацию о системах.</p>
 
 <div>
   <button id="authBtn">Авторизоваться через EVE Online</button>
@@ -37,7 +37,7 @@ button { font-size: 1rem; padding:6px; margin:4px; }
 const CLIENT_ID = '5a40c55151c241e3a007f2562fd4e1dd';
 const REDIRECT_URI = window.location.origin + window.location.pathname;
 const SCOPES = 'esi-location.read_location.v1';
-const SERVER = 'https://eve-api.onrender.com';
+const SERVER = 'https://eve-api.onrender.com'; // замени на свой сервер
 
 let charData = null;
 let historyData = [];
@@ -139,7 +139,7 @@ function buildMap(){
   network.on('selectNode', params=>{
     const node = historyData[params.nodes[0]];
     infoDiv.textContent = `Система: ${node.systemName} | Время сохранения: ${node.timestamp}`;
-    // TODO: Можно добавить информацию о сооружениях через ESI
+    // TODO: можно добавить данные о сооружениях через ESI
   });
 }
 
@@ -147,7 +147,7 @@ async function saveCurrentSystem(){
   if(!charData) return alert('Не авторизован');
   const systemName = prompt('Введите название текущей системы:');
   if(!systemName) return;
-  const systemID = Math.floor(Math.random()*100000); // можно заменить на реальный systemID из ESI
+  const systemID = Math.floor(Math.random()*100000); // можно заменить на реальный systemID через ESI
   const r = await fetch(`${SERVER}/location`,{
     method:'POST',
     headers:{'Content-Type':'application/json'},
