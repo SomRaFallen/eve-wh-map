@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>EVE WH Map</title>
+<title>EVE WH Map (Редактируемая карта)</title>
 <script src="https://unpkg.com/vis-network@9.1.2/dist/vis-network.min.js"></script>
 <style>
 body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial; margin:16px; }
@@ -14,8 +14,7 @@ button { font-size: 1rem; padding:6px; margin:4px; }
 </style>
 </head>
 <body>
-<h2>EVE Online — Карта перемещений WH</h2>
-<p class="note">Сохраняйте свои перемещения, редактируйте маршрут, просматривайте информацию о системах.</p>
+<h2>EVE WH Map — редактируемая карта wormhole маршрутов</h2>
 
 <div>
   <button id="authBtn">Авторизоваться через EVE Online</button>
@@ -25,8 +24,9 @@ button { font-size: 1rem; padding:6px; margin:4px; }
 <div id="authInfo" class="note"></div>
 
 <div>
-  <button id="saveBtn" style="display:none">Сохранить текущую систему</button>
+  <button id="saveBtn" style="display:none">Добавить систему</button>
   <button id="clearBtn" style="display:none">Очистить маршрут</button>
+  <button id="saveMapBtn" style="display:none">Сохранить изменения карты</button>
   <button id="refreshBtn" style="display:none">Обновить карту</button>
 </div>
 
@@ -38,7 +38,7 @@ const CLIENT_ID = '5a40c55151c241e3a007f2562fd4e1dd';
 const REDIRECT_URI = 'https://somrafallen.github.io/eve-wh-map/';
 const SCOPES = 'esi-location.read_location.v1';
 
-// ✅ Здесь прописан твой сервер Render
+// ✅ твой сервер Render
 const SERVER = 'https://eve-proxy.onrender.com';
 
 let charData = null;
@@ -50,6 +50,7 @@ const logoutBtn = document.getElementById('logoutBtn');
 const authInfo = document.getElementById('authInfo');
 const saveBtn = document.getElementById('saveBtn');
 const clearBtn = document.getElementById('clearBtn');
+const saveMapBtn = document.getElementById('saveMapBtn');
 const refreshBtn = document.getElementById('refreshBtn');
 const infoDiv = document.getElementById('info');
 const container = document.getElementById('map');
@@ -62,7 +63,7 @@ function login(){
 async function exchangeCode(code){
   const r = await fetch(`${SERVER}/exchange`, {
     method:'POST',
-    headers:{'Content-Type':'application/json; charset=utf-8'},
+    headers:{'Content-Type':'application/json'},
     body: JSON.stringify({code})
   });
   if(!r.ok) throw new Error('Ошибка обмена кода');
@@ -71,7 +72,7 @@ async function exchangeCode(code){
 
 async function getCharacterInfo(token){
   const r = await fetch('https://esi.evetech.net/verify/', {
-    headers:{Authorization:`Bearer ${token}`, 'Content-Type':'application/json; charset=utf-8'}
+    headers:{Authorization:`Bearer ${token}` }
   });
   if(!r.ok) throw new Error('Ошибка проверки токена');
   return await r.json();
@@ -86,6 +87,7 @@ function logout(){
   logoutBtn.style.display = 'none';
   saveBtn.style.display = 'none';
   clearBtn.style.display = 'none';
+  saveMapBtn.style.display = 'none';
   refreshBtn.style.display = 'none';
 }
 
@@ -120,6 +122,7 @@ function showAuth(){
   logoutBtn.style.display = 'inline-block';
   saveBtn.style.display = 'inline-block';
   clearBtn.style.display = 'inline-block';
+  saveMapBtn.style.display = 'inline-block';
   refreshBtn.style.display = 'inline-block';
   loadHistory();
 }
@@ -132,21 +135,38 @@ async function loadHistory(){
 }
 
 function buildMap(){
-  const nodes = historyData.map((h,i)=>({id:i,label:h.systemName, title:`Система: ${h.systemName}`}));
-  const edges = historyData.map((h,i)=>i>0?{from:i-1,to:i}:null).filter(e=>e);
+  const nodes = new vis.DataSet(historyData.map((h,i)=>({id:i,label:h.systemName,title:`Система: ${h.systemName}`})));
+  const edges = new vis.DataSet(historyData.map((h,i)=>i>0?{from:i-1,to:i}:null).filter(Boolean));
+
   const data = {nodes,edges};
-  const options = {physics:{enabled:true}, interaction:{hover:true, multiselect:true}};
+  const options = {
+    physics:{enabled:true},
+    manipulation:{
+      enabled:true,
+      addEdge: function(edgeData, callback){
+        if(edgeData.from === edgeData.to){ alert("Нельзя соединить систему саму с собой"); return; }
+        callback(edgeData);
+      },
+      deleteEdge: true,
+      deleteNode: true
+    }
+  };
   if(network) network.destroy();
   network = new vis.Network(container, data, options);
+
   network.on('selectNode', params=>{
     const node = historyData[params.nodes[0]];
-    infoDiv.textContent = `Система: ${node.systemName} | Время сохранения: ${node.timestamp}`;
+    infoDiv.textContent = `Система: ${node.systemName} | Время: ${node.timestamp}`;
   });
+
+  // Сохраняем доступ к объектам
+  window.networkNodes = nodes;
+  window.networkEdges = edges;
 }
 
 async function saveCurrentSystem(){
   if(!charData) return alert('Не авторизован');
-  const systemName = prompt('Введите название текущей системы:');
+  const systemName = prompt('Введите название новой системы:');
   if(!systemName) return;
   const systemID = Math.floor(Math.random()*100000);
   await fetch(`${SERVER}/location`,{
@@ -163,10 +183,25 @@ async function clearHistory(){
   await loadHistory();
 }
 
+// 🔹 Сохранить изменения карты
+async function saveMapChanges(){
+  if(!charData) return alert('Не авторизован');
+  const nodes = window.networkNodes.get();
+  const edges = window.networkEdges.get();
+  const payload = {nodes, edges};
+  await fetch(`${SERVER}/history/${charData.CharacterID}`, {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify(payload)
+  });
+  alert('Карта сохранена на сервере!');
+}
+
 authBtn.addEventListener('click', login);
 logoutBtn.addEventListener('click', logout);
 saveBtn.addEventListener('click', saveCurrentSystem);
 clearBtn.addEventListener('click', clearHistory);
+saveMapBtn.addEventListener('click', saveMapChanges);
 refreshBtn.addEventListener('click', loadHistory);
 
 handleAuth();
