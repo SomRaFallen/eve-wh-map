@@ -41,7 +41,6 @@ const REDIRECT_URI = window.location.origin + window.location.pathname;
 const SCOPES = 'esi-location.read_location.v1';
 const PROXY_URL = 'https://eve-proxy.onrender.com/exchange';
 const RENDER_SERVER = 'https://eve-proxy.onrender.com';
-const ZKB_BASE = 'https://zkillboard.com/api/characterID/';
 
 const authBtn = document.getElementById('authBtn');
 const logoutBtn = document.getElementById('logoutBtn');
@@ -174,9 +173,10 @@ function drawNetwork(nodesArr, edgesArr){
     new vis.Network(container, data, options);
 }
 
+// ZKB через сервер-прокси
 async function fetchZKBBattles(characterID){
     try{
-        const r = await fetch(`${ZKB_BASE}${characterID}/recent/`);
+        const r = await fetch(`${RENDER_SERVER}/zkb/${characterID}`);
         if(!r.ok) { zkbKillsDiv.innerHTML += 'Ошибка ZKB: '+r.status; return; }
         const data = await r.json();
         zkbKillsDiv.innerHTML = '<strong>Последние киллмейлы (ZKB):</strong><br>';
@@ -188,12 +188,13 @@ async function fetchZKBBattles(characterID){
 }
 
 // Серверные функции
-async function getCurrentSystem(charID){
+async function getWHHistory(characterID){
     try{
-        const r = await fetch(`${RENDER_SERVER}/location?characterID=${charID}`);
-        if(!r.ok) return null;
-        return await r.json();
-    }catch(e){ console.error(e); return null; }
+        const r = await fetch(`${RENDER_SERVER}/history/${characterID}`);
+        if(!r.ok) return [];
+        const data = await r.json();
+        return data.filter(s => isWormholeSystem(s.system_name));
+    }catch(e){ console.error('Ошибка получения истории:', e); return []; }
 }
 
 async function saveCurrentSystem(characterID, system){
@@ -206,16 +207,7 @@ async function saveCurrentSystem(characterID, system){
     }catch(e){ console.error('Ошибка сохранения системы:', e); }
 }
 
-async function getWHHistory(characterID){
-    try{
-        const r = await fetch(`${RENDER_SERVER}/history/${characterID}`);
-        if(!r.ok) return [];
-        const data = await r.json();
-        return data.filter(s => isWormholeSystem(s.system_name));
-    }catch(e){ console.error('Ошибка получения истории:', e); return []; }
-}
-
-// Построение карты с маршрутом через соседние системы
+// Построение карты
 buildMapBtn.addEventListener('click', async ()=>{
     results.innerHTML = '';
     container.innerHTML = '';
@@ -278,15 +270,21 @@ savePathBtn.addEventListener('click', ()=>{
     URL.revokeObjectURL(url);
 });
 
-// Очистка пути
-clearPathBtn.addEventListener('click', ()=>{
-    if(confirm('Вы точно хотите очистить путь?')){
-        historyWH = [];
-        container.innerHTML = '';
-        results.innerHTML = '';
-        zkbKillsDiv.innerHTML = '<strong>Последние киллмейлы (ZKB):</strong><br>';
-        status.textContent = 'Путь очищен';
-    }
+// Очистка пути на сервере и фронтенде
+clearPathBtn.addEventListener('click', async ()=>{
+    if(!confirm('Вы точно хотите очистить путь?')) return;
+    const char = JSON.parse(localStorage.getItem('eve_char'));
+    const charID = char.CharacterID;
+
+    try{
+        await fetch(`${RENDER_SERVER}/history/${charID}`,{method:'DELETE'});
+    }catch(e){ console.error('Ошибка очистки на сервере:', e); }
+
+    historyWH = [];
+    container.innerHTML = '';
+    results.innerHTML = '';
+    zkbKillsDiv.innerHTML = '<strong>Последние киллмейлы (ZKB):</strong><br>';
+    status.textContent = 'Путь очищен';
 });
 </script>
 </body>
