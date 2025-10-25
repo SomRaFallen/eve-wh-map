@@ -15,7 +15,7 @@ button{font-size:1rem;padding:8px;margin:4px}
 </head>
 <body>
 <h2>EVE Online — Карта перемещений пилота</h2>
-<p class="note">Сайт использует <strong>EVE SSO</strong> и строит карту последних посещённых систем пилота.</p>
+<p class="note">Сайт использует <strong>EVE SSO</strong> и строит карту перемещений пилота. Можно сохранить путь в JSON.</p>
 
 <div>
 <button id="authBtn">Авторизоваться через EVE Online</button>
@@ -24,6 +24,7 @@ button{font-size:1rem;padding:8px;margin:4px}
 <div id="authInfo" class="note"></div>
 <div>
 <button id="buildMapBtn" style="display:none">Построить карту перемещений</button>
+<button id="savePathBtn" style="display:none">Сохранить путь</button>
 </div>
 
 <div id="status" class="note"></div>
@@ -41,9 +42,12 @@ const authBtn = document.getElementById('authBtn');
 const logoutBtn = document.getElementById('logoutBtn');
 const authInfo = document.getElementById('authInfo');
 const buildMapBtn = document.getElementById('buildMapBtn');
+const savePathBtn = document.getElementById('savePathBtn');
 const status = document.getElementById('status');
 const results = document.getElementById('results');
 const container = document.getElementById('map');
+
+let historySystems = [];
 
 function login(){
     const state = Math.random().toString(36).substring(2);
@@ -74,6 +78,7 @@ function logout(){
     authBtn.style.display = 'inline-block';
     logoutBtn.style.display = 'none';
     buildMapBtn.style.display = 'none';
+    savePathBtn.style.display = 'none';
 }
 
 async function handleAuth(){
@@ -89,6 +94,7 @@ async function handleAuth(){
             authBtn.style.display = 'none';
             logoutBtn.style.display = 'inline-block';
             buildMapBtn.style.display = 'inline-block';
+            savePathBtn.style.display = 'inline-block';
             window.history.replaceState({}, document.title, window.location.pathname);
         }catch(e){
             console.error(e);
@@ -103,6 +109,7 @@ async function handleAuth(){
             authBtn.style.display = 'none';
             logoutBtn.style.display = 'inline-block';
             buildMapBtn.style.display = 'inline-block';
+            savePathBtn.style.display = 'inline-block';
         }
     }
 }
@@ -136,44 +143,44 @@ function drawNetwork(nodesArr, edgesArr){
     new vis.Network(container, data, options);
 }
 
-// Для примера: имитация истории последних перемещений
-function getFakeHistorySystems(){
-    return [
-        {id:30000142,name:'Jita'}, 
-        {id:30000144,name:'Perimeter'},
-        {id:30000142,name:'Jita'},
-        {id:30002187,name:'Amarr'},
-        {id:30000144,name:'Perimeter'}
-    ];
-}
-
 buildMapBtn.addEventListener('click', async ()=>{
     results.innerHTML = '';
     container.innerHTML = '';
+    historySystems = [];
+
     const token = localStorage.getItem('eve_token');
     const char = JSON.parse(localStorage.getItem('eve_char'));
     const charName = char.CharacterName;
+    const charId = char.CharacterID;
 
     try{
-        status.textContent = 'Получаем историю перемещений...';
+        status.textContent = 'Получаем текущее местоположение...';
+        const loc = await esiGetCurrentLocation(charId, token);
+        if(!loc || !loc.solar_system_id){ status.textContent='Не удалось получить текущее местоположение'; return; }
 
-        // Для теста используем фиктивную историю
-        const history = getFakeHistorySystems();
+        const currentSystem = await esiGetSystem(loc.solar_system_id);
+        historySystems.push({id:currentSystem.system_id,name:currentSystem.name});
 
-        // Создаем уникальные узлы и связи по порядку
-        const nodesSet = new Set();
-        const edges = [];
+        // Для примера добавим несколько соседних систем вручную
+        const fakeNearbySystems = [
+            {id:30000142,name:'Jita'},
+            {id:30000144,name:'Perimeter'},
+            {id:30002187,name:'Amarr'}
+        ];
+
+        fakeNearbySystems.forEach(s=>{
+            if(!historySystems.find(h=>h.name===s.name)) historySystems.push(s);
+        });
+
+        // Создание узлов и связей
         const nodes = [];
-        nodes.push(charName); // главный узел
+        const edges = [];
+        nodes.push(charName);
         let lastNode = 0;
-        history.forEach((s, idx)=>{
-            if(!nodesSet.has(s.name)){
-                nodesSet.add(s.name);
-                nodes.push(s.name);
-            }
-            const nodeIndex = nodes.indexOf(s.name);
-            edges.push({from:lastNode,to:nodeIndex});
-            lastNode = nodeIndex;
+        historySystems.forEach((s)=>{
+            nodes.push(s.name);
+            edges.push({from:lastNode,to:nodes.length-1});
+            lastNode = nodes.length-1;
         });
 
         drawNetwork(nodes, edges);
@@ -181,7 +188,7 @@ buildMapBtn.addEventListener('click', async ()=>{
         // Вывод истории
         const html = [];
         html.push('<h3>История перемещений:</h3><ul>');
-        history.forEach(s=>{
+        historySystems.forEach(s=>{
             const flag = isWormholeSystemName(s.name)? ' — ВХ':'';
             html.push(`<li>${s.name}${flag}</li>`);
         });
@@ -192,6 +199,17 @@ buildMapBtn.addEventListener('click', async ()=>{
         console.error(e);
         status.textContent='Ошибка: '+e.message;
     }
+});
+
+savePathBtn.addEventListener('click', ()=>{
+    if(historySystems.length===0){ alert('Нет данных для сохранения'); return; }
+    const blob = new Blob([JSON.stringify(historySystems,null,2)],{type:'application/json'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'path.json';
+    a.click();
+    URL.revokeObjectURL(url);
 });
 </script>
 </body>
