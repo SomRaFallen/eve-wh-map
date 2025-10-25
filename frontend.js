@@ -21,10 +21,12 @@ const authInfo = document.getElementById('authInfo');
 let accessToken = localStorage.getItem('accessToken') || null;
 let zkbToken = localStorage.getItem('zkbToken') || null;
 let currentCharacter = JSON.parse(localStorage.getItem('currentCharacter')) || null;
+let routeNodes = JSON.parse(localStorage.getItem('routeNodes')) || [];
+let routeEdges = JSON.parse(localStorage.getItem('routeEdges')) || [];
 
 // --- Карта ---
-let nodes = new vis.DataSet();
-let edges = new vis.DataSet();
+let nodes = new vis.DataSet(routeNodes);
+let edges = new vis.DataSet(routeEdges);
 const container = document.getElementById('map');
 const data = { nodes, edges };
 const options = {
@@ -52,7 +54,6 @@ const translations = {
       map:"Карта (vis-network)", saveMap:"Зберегти карту", loadMap:"Завантажити карту", actions:"Дії",
       authInfo:"Авторизований: ", notAuth:"Не авторизований"}
 };
-
 function setLanguage(lang){
   currentLang = lang;
   const t = translations[lang];
@@ -70,8 +71,10 @@ function setLanguage(lang){
   document.getElementById('actionsTitle').textContent = t.actions;
   authInfo.textContent = currentCharacter ? t.authInfo + currentCharacter.CharacterName : t.notAuth;
 }
+setLanguage('ru');
+langSelect.addEventListener('change', ()=>setLanguage(langSelect.value));
 
-// --- Обработчики кнопок и SSO ---
+// --- Авторизация ---
 authBtn.addEventListener('click', ()=>{
   const state = Math.random().toString(36).substring(2);
   const url = `https://login.eveonline.com/v2/oauth/authorize?response_type=code&redirect_uri=${encodeURIComponent(REDIRECT_URI)}&client_id=${CLIENT_ID}&scope=publicData esi-location.read_location.v1&state=${state}`;
@@ -90,7 +93,7 @@ logoutBtn.addEventListener('click', ()=>{
   loadZkbBtn.style.display='none';
 });
 
-// --- Обработка редиректа после SSO ---
+// --- Обработка редиректа ---
 async function handleRedirect(){
   const params = new URLSearchParams(window.location.search);
   if(params.has('code')){
@@ -114,11 +117,10 @@ async function handleRedirect(){
       clearBtn.style.display='inline-block';
       loadZkbBtn.style.display='inline-block';
       nodes.clear(); edges.clear();
-      nodes.add({ id: 1, label: "J114337", meta: "Текущая система" });
+      nodes.add({ id: 1, label: currentCharacter.SystemName || "J114337", meta: "Текущая система" });
     }catch(e){ authInfo.textContent='Ошибка авторизации: '+e.message; console.error(e);}
     window.history.replaceState({}, document.title, window.location.pathname);
   } else if(currentCharacter){
-    // уже авторизован
     authInfo.textContent = translations[currentLang].authInfo + currentCharacter.CharacterName;
     authBtn.style.display='none';
     logoutBtn.style.display='inline-block';
@@ -127,11 +129,73 @@ async function handleRedirect(){
     clearBtn.style.display='inline-block';
     loadZkbBtn.style.display='inline-block';
     nodes.clear(); edges.clear();
-    nodes.add({ id: 1, label: "J114337", meta: "Текущая система" });
+    nodes.add({ id: 1, label: currentCharacter.SystemName || "J114337", meta: "Текущая система" });
   }
 }
-
 handleRedirect();
-setLanguage('ru');
 
-langSelect.addEventListener('change', ()=>setLanguage(langSelect.value));
+// --- Сохранение маршрута ---
+saveMapBtn.addEventListener('click', ()=>{
+  localStorage.setItem('routeNodes', JSON.stringify(nodes.get()));
+  localStorage.setItem('routeEdges', JSON.stringify(edges.get()));
+  alert('Маршрут сохранен!');
+});
+
+// --- Загрузка маршрута ---
+loadMapBtn.addEventListener('click', ()=>{
+  const savedNodes = JSON.parse(localStorage.getItem('routeNodes'))||[];
+  const savedEdges = JSON.parse(localStorage.getItem('routeEdges'))||[];
+  nodes.clear(); edges.clear();
+  nodes.add(savedNodes);
+  edges.add(savedEdges);
+});
+
+// --- Очистка маршрута ---
+clearBtn.addEventListener('click', ()=>{
+  nodes.clear(); edges.clear();
+  localStorage.removeItem('routeNodes');
+  localStorage.removeItem('routeEdges');
+});
+
+// --- Сохранение текущей локации ---
+saveLocBtn.addEventListener('click', ()=>{
+  if(!currentCharacter) return alert('Не авторизован');
+  const sysName = currentCharacter.SystemName || "J114337";
+  const id = nodes.length+1;
+  nodes.add({ id, label: sysName, meta:"Сохраненная локация" });
+});
+
+// --- ZKB авторизация ---
+zkbAuthBtn.addEventListener('click', ()=>{
+  const state = Math.random().toString(36).substring(2);
+  const url = `${SERVER}/zkbAuth?characterId=${currentCharacter.CharacterID}&state=${state}`;
+  window.open(url,'_blank');
+});
+
+// --- Загрузка последних киллмейлов ---
+loadZkbBtn.addEventListener('click', async ()=>{
+  if(!currentCharacter) return alert('Не авторизован');
+  try{
+    const resp = await fetch(`${SERVER}/zkbKills?characterId=${currentCharacter.CharacterID}`);
+    const data = await resp.json();
+    killsList.innerHTML='';
+    data.forEach(k=>{
+      const div = document.createElement('div');
+      div.className='kill';
+      div.innerHTML=`<div class="system">${k.solarSystem}</div><div class="meta">${k.date}</div><div class="ship">${k.ship}</div>`;
+      killsList.appendChild(div);
+    });
+  }catch(e){ console.error(e); alert('Ошибка ZKB: '+e.message);}
+});
+
+// --- Поиск персонажей ---
+searchBtn.addEventListener('click', async ()=>{
+  const q = searchInput.value.trim();
+  if(!q) return;
+  try{
+    const resp = await fetch(`${SERVER}/search?query=${encodeURIComponent(q)}`);
+    const data = await resp.json();
+    if(data.length===0) return alert('Персонаж не найден');
+    alert('Найдено: '+data.map(p=>p.name).join(', '));
+  }catch(e){ console.error(e); alert('Ошибка поиска: '+e.message);}
+});
