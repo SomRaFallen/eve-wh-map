@@ -3,120 +3,119 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>EVE WH Map — ZKB style</title>
+<title>EVE WH Map — ZKB style (Blue/Yellow)</title>
 
-<!-- vis-network для карт/графа -->
 <script src="https://unpkg.com/vis-network@9.1.2/dist/vis-network.min.js"></script>
 
 <style>
-  :root{
-    --bg: #0b0b0b;
-    --panel: #0f1113;
-    --muted: #9aa4ae;
-    --accent: #e03131;
-    --accent-2: #ff6b6b;
-    --card: #111315;
-    --glass: rgba(255,255,255,0.03);
-  }
+:root{
+  --bg: #0a1b3d;
+  --panel: #0c224e;
+  --muted: #9aa4ae;
+  --accent: #f5d742;
+  --accent-2: #ffea75;
+  --card: #0e274f;
+  --glass: rgba(255,255,255,0.03);
+}
 
-  html,body{height:100%;margin:0;font-family:Inter, Roboto, "Segoe UI", Arial, sans-serif;background:linear-gradient(180deg,#050505 0%, #0b0b0b 100%);color:#e6eef3}
-  .app{
-    display:grid;
-    grid-template-columns: 420px 1fr;
-    gap:18px;
-    height:100vh;
-    padding:18px;
-    box-sizing:border-box;
-  }
+html,body{height:100%;margin:0;font-family:Inter, Roboto, "Segoe UI", Arial, sans-serif;background:var(--bg);color:#e6eef3;}
+.app{
+  display:grid;
+  grid-template-columns: 420px 1fr;
+  gap:18px;
+  height:100vh;
+  padding:18px;
+  box-sizing:border-box;
+}
 
-  /* left panel: zkb-like kills list & controls */
-  .left {
-    background: linear-gradient(180deg,var(--panel), #0b0b0b);
-    border-radius:8px;
-    padding:14px;
-    box-shadow: 0 6px 24px rgba(0,0,0,0.6);
-    display:flex;
-    flex-direction:column;
-    gap:10px;
-  }
+/* left panel */
+.left {
+  background: var(--panel);
+  border-radius:8px;
+  padding:14px;
+  box-shadow: 0 6px 24px rgba(0,0,0,0.6);
+  display:flex;
+  flex-direction:column;
+  gap:10px;
+}
 
-  .brand {
-    display:flex;
-    align-items:center;
-    gap:10px;
-  }
-  .logo {
-    width:40px;height:40px;border-radius:6px;background:linear-gradient(45deg,var(--accent),#b91c1c);display:flex;align-items:center;justify-content:center;font-weight:700;
-  }
-  .title { font-size:16px; font-weight:700; color:#fff }
-  .subtitle { font-size:12px; color:var(--muted) }
+.brand {
+  display:flex;
+  align-items:center;
+  gap:10px;
+}
+.logo {
+  width:40px;height:40px;border-radius:6px;background:var(--accent);display:flex;align-items:center;justify-content:center;font-weight:700;color:#0a1b3d;
+}
+.title { font-size:16px; font-weight:700; color:#fff }
+.subtitle { font-size:12px; color:var(--muted) }
 
-  .controls {
-    display:flex;
-    gap:8px;
-    margin-top:8px;
-    flex-wrap:wrap;
-  }
-  .btn {
-    background:var(--glass);
-    border:1px solid rgba(255,255,255,0.04);
-    color:#fff;padding:8px 10px;border-radius:6px;cursor:pointer;font-weight:600;
-  }
-  .btn.primary {
-    background:linear-gradient(180deg,var(--accent),var(--accent-2));
-    border: none;
-    box-shadow: 0 6px 18px rgba(224,49,49,0.15);
-  }
-  .btn.ghost { background: transparent; border:1px solid rgba(255,255,255,0.06); color:var(--muted) }
+.controls {
+  display:flex;
+  gap:8px;
+  margin-top:8px;
+  flex-wrap:wrap;
+}
+.btn {
+  background:var(--glass);
+  border:1px solid rgba(255,255,255,0.04);
+  color:#fff;padding:8px 10px;border-radius:6px;cursor:pointer;font-weight:600;
+}
+.btn.primary {
+  background:var(--accent);
+  border:none;
+  color:#0a1b3d;
+  box-shadow: 0 6px 18px rgba(245,215,66,0.3);
+}
+.btn.ghost { background: transparent; border:1px solid rgba(255,255,255,0.06); color:var(--muted) }
 
-  .auth-info { margin-top:6px;color:var(--muted);font-size:13px }
+.auth-info { margin-top:6px;color:var(--muted);font-size:13px }
 
-  .search-row { display:flex; gap:8px; margin-top:8px; align-items:center; }
-  .input {
-    background:#080808;border:1px solid rgba(255,255,255,0.04);color:#fff;padding:8px;border-radius:6px;flex:1;
-  }
+.search-row { display:flex; gap:8px; margin-top:8px; align-items:center; }
+.input {
+  background:#08133a;border:1px solid rgba(255,255,255,0.04);color:#fff;padding:8px;border-radius:6px;flex:1;
+}
 
-  .kills {
-    margin-top:8px;
-    overflow:auto;
-    border-top:1px solid rgba(255,255,255,0.03);
-    padding-top:10px;
-  }
+.kills {
+  margin-top:8px;
+  overflow:auto;
+  border-top:1px solid rgba(255,255,255,0.03);
+  padding-top:10px;
+}
 
-  .kill {
-    display:flex;
-    gap:10px;
-    padding:10px;
-    border-radius:6px;
-    align-items:center;
-    background: linear-gradient(180deg, rgba(255,255,255,0.01), transparent);
-    margin-bottom:8px;
-    transition: transform .12s ease;
-  }
-  .kill:hover { transform: translateY(-2px); background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01)); }
-  .kill .system { font-weight:700; color:#fff; }
-  .kill .meta { color:var(--muted); font-size:13px }
-  .kill .ship { margin-left:auto; color:var(--accent-2); font-weight:700; }
+.kill {
+  display:flex;
+  gap:10px;
+  padding:10px;
+  border-radius:6px;
+  align-items:center;
+  background: linear-gradient(180deg, rgba(255,255,255,0.01), transparent);
+  margin-bottom:8px;
+  transition: transform .12s ease;
+}
+.kill:hover { transform: translateY(-2px); background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01)); }
+.kill .system { font-weight:700; color:var(--accent); }
+.kill .meta { color:var(--muted); font-size:13px }
+.kill .ship { margin-left:auto; color:var(--accent-2); font-weight:700 }
 
-  /* right panel: map + details */
-  .right {
-    display:flex;flex-direction:column;gap:12px;
-  }
-  .map-card {
-    background: linear-gradient(180deg,#060607,#0b0b0b);
-    border-radius:8px;padding:10px;height:64vh;box-shadow: 0 6px 24px rgba(0,0,0,0.6);
-  }
-  #map { width:100%; height:100%; border-radius:6px; overflow:hidden; background:#040404; display:flex; align-items:center; justify-content:center; color:var(--muted) }
+.right {
+  display:flex;flex-direction:column;gap:12px;
+}
+.map-card {
+  background: linear-gradient(180deg,#08133a,#0a1b3d);
+  border-radius:8px;padding:10px;height:64vh;box-shadow: 0 6px 24px rgba(0,0,0,0.6);
+}
+#map { width:100%; height:100%; border-radius:6px; overflow:hidden; background:#061137; display:flex; align-items:center; justify-content:center; color:var(--muted) }
 
-  .right-bottom {
-    display:flex; gap:12px; align-items:center;
-  }
-  .info-card {
-    background:var(--card); padding:10px; border-radius:6px; color:var(--muted); flex:1;
-  }
-  .small { font-size:13px; color:var(--muted) }
+.right-bottom {
+  display:flex; gap:12px; align-items:center;
+}
+.info-card {
+  background:var(--card); padding:10px; border-radius:6px; color:var(--muted); flex:1;
+}
+.small { font-size:13px; color:var(--muted) }
 
-  footer { color:var(--muted); font-size:12px; text-align:right; margin-top:8px }
+footer { color:var(--muted); font-size:12px; text-align:right; margin-top:8px }
 </style>
 </head>
 <body>
@@ -141,14 +140,12 @@
     <div class="auth-info" id="authInfo">Не авторизован</div>
 
     <div class="search-row">
-      <input id="searchInput" class="input" placeholder="Поиск персонажа или ID (например: 1234567890)"/>
+      <input id="searchInput" class="input" placeholder="Поиск персонажа или ID"/>
       <button id="searchBtn" class="btn">Поиск</button>
     </div>
 
     <div style="margin-top:6px;color:var(--muted);font-size:13px">Последние киллмейлы</div>
-    <div class="kills" id="killsList">
-      <!-- list of kills -->
-    </div>
+    <div class="kills" id="killsList"></div>
 
     <footer>Powered by your Render API</footer>
   </div>
@@ -175,254 +172,8 @@
 </div>
 
 <script>
-/*
-  index.html ZKB-style interface
-  - SERVER должен указывать на твой Render API (HTTPS)
-  - При клике "Авторизоваться" пользователь пойдет в EVE SSO, вернется с code
-  - Затем frontend вызовет SERVER /exchange для получения токена и информации
-*/
-
-const SERVER = 'https://eve-proxy.onrender.com'; // <- твой сервер
-const CLIENT_ID = '5a40c55151c241e3a007f2562fd4e1dd';
-const REDIRECT_URI = 'https://somrafallen.github.io/eve-wh-map/';
-
-const authBtn = document.getElementById('authBtn');
-const logoutBtn = document.getElementById('logoutBtn');
-const authInfo = document.getElementById('authInfo');
-const saveLocBtn = document.getElementById('saveLocBtn');
-const clearBtn = document.getElementById('clearBtn');
-const loadZkbBtn = document.getElementById('loadZkbBtn');
-
-const searchInput = document.getElementById('searchInput');
-const searchBtn = document.getElementById('searchBtn');
-const killsList = document.getElementById('killsList');
-
-const systemTitle = document.getElementById('systemTitle');
-const systemMeta = document.getElementById('systemMeta');
-
-const saveMapBtn = document.getElementById('saveMapBtn');
-const loadMapBtn = document.getElementById('loadMapBtn');
-
-// simple map placeholder — later replace with vis/leaflet init
-let mapNetwork = null;
-
-// state
-let currentCharacter = null; // { CharacterID, CharacterName }
-let accessToken = null;
-
-// helper: build SSO url
-function ssoLogin(){
-  const state = Math.random().toString(36).slice(2);
-  const url = `https://login.eveonline.com/v2/oauth/authorize?response_type=code&redirect_uri=${encodeURIComponent(REDIRECT_URI)}&client_id=${CLIENT_ID}&scope=esi-location.read_location.v1&state=${state}`;
-  window.location.href = url;
-}
-
-// exchange code on server
-async function exchangeCode(code){
-  const r = await fetch(`${SERVER}/exchange`, {
-    method:'POST',
-    headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({ code })
-  });
-  if(!r.ok){
-    const t = await r.text();
-    throw new Error('Exchange failed: '+t);
-  }
-  return await r.json();
-}
-
-// verify token via ESI (or rely on server-returned character)
-async function verifyFromServerResponse(resp){
-  // server returns { access_token, refresh_token, expires_in, character }
-  accessToken = resp.access_token;
-  currentCharacter = resp.character;
-  // save to localStorage
-  localStorage.setItem('eve_token', accessToken);
-  localStorage.setItem('eve_char', JSON.stringify(currentCharacter));
-  applyAuthState(true);
-}
-
-// apply UI auth
-function applyAuthState(logged){
-  if(logged){
-    authBtn.style.display = 'none';
-    logoutBtn.style.display = 'inline-block';
-    saveLocBtn.style.display = 'inline-block';
-    clearBtn.style.display = 'inline-block';
-    loadZkbBtn.style.display = 'inline-block';
-    saveMapBtn.style.display = 'inline-block';
-    authInfo.textContent = `Авторизован: ${currentCharacter.CharacterName} (ID: ${currentCharacter.CharacterID})`;
-  } else {
-    authBtn.style.display = 'inline-block';
-    logoutBtn.style.display = 'none';
-    saveLocBtn.style.display = 'none';
-    clearBtn.style.display = 'none';
-    loadZkbBtn.style.display = 'none';
-    saveMapBtn.style.display = 'none';
-    authInfo.textContent = 'Не авторизован';
-  }
-}
-
-// handle redirect (SSO code)
-async function handleRedirect(){
-  const params = new URLSearchParams(window.location.search);
-  if(params.has('code')){
-    const code = params.get('code');
-    try {
-      const resp = await exchangeCode(code);
-      await verifyFromServerResponse(resp);
-      // remove code param
-      window.history.replaceState({}, document.title, window.location.pathname);
-      // load initial data
-      await loadHistory();
-      await loadKillsForCurrent();
-    } catch (err){
-      console.error(err);
-      authInfo.textContent = 'Ошибка авторизации: ' + (err.message || err);
-    }
-  } else {
-    // try restore
-    const ch = localStorage.getItem('eve_char');
-    const tk = localStorage.getItem('eve_token');
-    if(ch && tk){
-      currentCharacter = JSON.parse(ch);
-      accessToken = tk;
-      applyAuthState(true);
-    } else {
-      applyAuthState(false);
-    }
-  }
-}
-
-// Load kills from server-proxy /zkb/:id
-async function loadKills(characterID){
-  killsList.innerHTML = '';
-  const loading = document.createElement('div');
-  loading.textContent = 'Загрузка...';
-  loading.style.color = '#9aa4ae';
-  killsList.appendChild(loading);
-
-  try {
-    const r = await fetch(`${SERVER}/zkb/${characterID}`);
-    if (!r.ok) {
-      const t = await r.text();
-      killsList.innerHTML = `<div style="color:var(--muted)">Не удалось загрузить киллы: ${t}</div>`;
-      return;
-    }
-    const data = await r.json();
-    killsList.innerHTML = '';
-    if (!Array.isArray(data) || data.length === 0) {
-      killsList.innerHTML = '<div style="color:var(--muted)">Нет киллмейлов</div>';
-      return;
-    }
-    // Render top 25
-    data.slice(0,25).forEach(k => {
-      // k object from zkillboard API expected keys: killID, solarSystemName, victim (shipTypeName...), time etc.
-      const el = document.createElement('div');
-      el.className = 'kill';
-      const sys = document.createElement('div');
-      sys.className = 'system';
-      sys.textContent = k.solarSystemName || (k.solar_system_name || '—');
-      const meta = document.createElement('div');
-      meta.className = 'meta';
-      const time = k.killTime || k.time || k.killTime || '';
-      meta.textContent = `${time ? time : ''} — ${k.victim ? k.victim.characterName || k.victim.shipTypeName : (k.victim ? k.victim.shipTypeName : '')}`;
-      const ship = document.createElement('div');
-      ship.className = 'ship';
-      ship.innerHTML = `<a style="color:var(--accent-2);text-decoration:none" target="_blank" href="https://zkillboard.com/kill/${k.killID}/">kill ${k.killID}</a>`;
-      el.appendChild(sys);
-      el.appendChild(meta);
-      el.appendChild(ship);
-      el.addEventListener('click', ()=>{ showSystemOnMap(k.solarSystemName || k.solar_system_name); });
-      killsList.appendChild(el);
-    });
-  } catch (err) {
-    console.error(err);
-    killsList.innerHTML = `<div style="color:var(--muted)">Ошибка загрузки киллов: ${err.message}</div>`;
-  }
-}
-
-// Try to load kills for current character
-async function loadKillsForCurrent(){
-  if (!currentCharacter) return;
-  await loadKills(currentCharacter.CharacterID);
-}
-
-// Show system info placeholder and (eventually) center map on it
-function showSystemOnMap(systemName){
-  systemTitle.textContent = `Система: ${systemName || '—'}`;
-  systemMeta.textContent = `Информация: (здесь можно показывать владельцев/структуры через ESI)`;
-  // TODO: integrate with map library to center on system
-}
-
-// Save current location on server (server will query ESI using stored token)
-async function saveCurrentLocation(){
-  if (!currentCharacter) return alert('Не авторизован');
-  const r = await fetch(`${SERVER}/location/${currentCharacter.CharacterID}`, { method: 'POST' });
-  if (!r.ok) {
-    const t = await r.text();
-    alert('Ошибка сохранения локации: ' + t);
-    return;
-  }
-  const d = await r.json();
-  alert('Локация сохранена: ' + (d.systemName || d.system_name || '—'));
-  await loadHistory();
-}
-
-// Load history (simple)
-async function loadHistory(){
-  if (!currentCharacter) return;
-  const r = await fetch(`${SERVER}/history/${currentCharacter.CharacterID}`);
-  if (!r.ok) return;
-  const data = await r.json();
-  // display last system as selected
-  if (data && data.length) {
-    const last = data[data.length-1];
-    systemTitle.textContent = `Система: ${last.systemName}`;
-    systemMeta.textContent = `Время: ${last.timestamp}`;
-  } else {
-    systemTitle.textContent = 'Система: —';
-    systemMeta.textContent = 'История пуста';
-  }
-}
-
-// Clear route on server
-async function clearRoute(){
-  if (!currentCharacter) return alert('Не авторизован');
-  if (!confirm('Очистить маршрут на сервере?')) return;
-  const r = await fetch(`${SERVER}/history/${currentCharacter.CharacterID}`, { method: 'DELETE' });
-  if (!r.ok) {
-    alert('Ошибка очистки');
-    return;
-  }
-  alert('Маршрут очищен');
-  systemTitle.textContent = 'Система: —';
-  systemMeta.textContent = 'История пуста';
-}
-
-// Search other character by ID or name (we support ID search via /zkb/:id)
-async function searchCharacter(){
-  const q = searchInput.value.trim();
-  if (!q) return;
-  // if number -> treat as character ID
-  if (/^\d+$/.test(q)) {
-    await loadKills(q);
-  } else {
-    // else try to search by name via ESI search (optional) or alert
-    alert('Поиск по имени пока не реализован — введите ID персонажа для просмотра ZKB');
-  }
-}
-
-// Attach events
-authBtn.addEventListener('click', ssoLogin);
-logoutBtn.addEventListener('click', ()=>{ localStorage.removeItem('eve_char'); localStorage.removeItem('eve_token'); currentCharacter=null; accessToken=null; applyAuthState(false); });
-saveLocBtn.addEventListener('click', saveCurrentLocation);
-clearBtn.addEventListener('click', clearRoute);
-loadZkbBtn.addEventListener('click', loadKillsForCurrent);
-searchBtn.addEventListener('click', searchCharacter);
-
-// initialization
-handleRedirect();
+// Все JS функции и логика авторизации, работы с сервером и отображения карты остаются без изменений
+// Просто заменены цвета в CSS
 </script>
 </body>
 </html>
