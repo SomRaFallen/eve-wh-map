@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>EVE — Карта ВХ пилота (с авторизацией)</title>
+  <title>EVE — Карта ВХ пилота</title>
   <script src="https://unpkg.com/vis-network@9.1.2/dist/vis-network.min.js"></script>
   <style>
     body{font-family:system-ui,-apple-system,Segoe UI,Roboto,'Helvetica Neue',Arial;margin:16px}
@@ -34,10 +34,11 @@
 
 <script>
 // === CONFIGURATION ===
-const CLIENT_ID = 'ВСТАВЬ_СВОЙ_CLIENT_ID'; // получи на https://developers.eveonline.com/applications
-const REDIRECT_URI = window.location.origin + window.location.pathname; // тот же адрес, что в настройках приложения
+const CLIENT_ID = '5a40c55151c241e3a007f2562fd4e1dd';
+const REDIRECT_URI = window.location.origin + window.location.pathname;
 const SCOPES = 'esi-killmails.read_killmails.v1 esi-location.read_location.v1';
 const ESI_BASE = 'https://esi.evetech.net/latest';
+const PROXY_URL = 'https://твoй-render-домен.onrender.com/exchange'; // вставь сюда свой Render URL
 
 // === ELEMENTS ===
 const authBtn = document.getElementById('authBtn');
@@ -57,15 +58,10 @@ function login(){
 }
 
 async function exchangeCodeForToken(code){
-  // EVE SSO требует обмен через backend, но для демонстрации — используем public flow (CORS может блокировать)
-  const creds = btoa(`${CLIENT_ID}:`);
-  const r = await fetch('https://login.eveonline.com/v2/oauth/token',{
-    method:'POST',
-    headers:{
-      'Authorization':`Basic ${creds}`,
-      'Content-Type':'application/x-www-form-urlencoded'
-    },
-    body:`grant_type=authorization_code&code=${code}`
+  const r = await fetch(PROXY_URL, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({ code })
   });
   if(!r.ok) throw new Error('Ошибка обмена кода на токен');
   return await r.json();
@@ -198,16 +194,16 @@ searchBtn.addEventListener('click', async ()=>{
     html.push('<h3>Системы:</h3><ul>');
     for(const [sid,n] of Object.entries(systems)){
       const flag = isWormholeSystemName(n) ? ' — ВХ' : '';
-      html.push(`<li>${n} (id ${sid})${flag}</li>`);
+      html.push(`<li>${n}${flag}</li>`);
     }
     html.push('</ul>');
     results.innerHTML = html.join('');
-  }catch(err){
-    console.error(err);
-    setStatus('Ошибка: '+err.message);
+    setStatus('Готово');
+  }catch(e){
+    console.error(e);
+    setStatus('Ошибка: '+e.message);
   }
 });
 </script>
-
 </body>
 </html>
