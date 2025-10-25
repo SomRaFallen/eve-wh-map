@@ -39,7 +39,7 @@ button{font-size:1rem;padding:6px;margin:4px}
 const CLIENT_ID = '5a40c55151c241e3a007f2562fd4e1dd';
 const REDIRECT_URI = window.location.origin + window.location.pathname;
 const SCOPES = 'esi-location.read_location.v1';
-const RENDER_SERVER = 'https://eve-api.onrender.com'; // твой сервер Render
+const RENDER_SERVER = 'https://eve-api.onrender.com';
 
 const authBtn = document.getElementById('authBtn');
 const logoutBtn = document.getElementById('logoutBtn');
@@ -53,6 +53,7 @@ const zkbKillsDiv = document.getElementById('zkbKills');
 const container = document.getElementById('map');
 
 let historyWH = [];
+let charData = null;
 
 function login(){
     const state = Math.random().toString(36).substring(2);
@@ -91,23 +92,17 @@ function logout(){
 
 async function handleAuth(){
     const params = new URLSearchParams(window.location.search);
-    let char, token;
+    let token;
 
     if(params.has('code')){
         const code = params.get('code');
         try{
             const tokenData = await exchangeCodeForToken(code);
             token = tokenData.access_token;
-            const verify = await getCharacterInfo(token);
-            char = verify;
+            charData = await getCharacterInfo(token);
             localStorage.setItem('eve_token', token);
-            localStorage.setItem('eve_char', JSON.stringify(char));
-            authInfo.textContent = `Авторизован: ${char.CharacterName} (ID: ${char.CharacterID})`;
-            authBtn.style.display = 'none';
-            logoutBtn.style.display = 'inline-block';
-            buildMapBtn.style.display = 'inline-block';
-            savePathBtn.style.display = 'inline-block';
-            clearPathBtn.style.display = 'inline-block';
+            localStorage.setItem('eve_char', JSON.stringify(charData));
+            showAuthInfo();
             window.history.replaceState({}, document.title, window.location.pathname);
         }catch(e){
             console.error(e);
@@ -115,21 +110,79 @@ async function handleAuth(){
         }
     } else {
         token = localStorage.getItem('eve_token');
-        const charData = localStorage.getItem('eve_char');
-        if(token && charData){
-            char = JSON.parse(charData);
-            authInfo.textContent = `Авторизован: ${char.CharacterName} (ID: ${char.CharacterID})`;
-            authBtn.style.display = 'none';
-            logoutBtn.style.display = 'inline-block';
-            buildMapBtn.style.display = 'inline-block';
-            savePathBtn.style.display = 'inline-block';
-            clearPathBtn.style.display = 'inline-block';
+        const savedChar = localStorage.getItem('eve_char');
+        if(token && savedChar){
+            charData = JSON.parse(savedChar);
+            showAuthInfo();
         }
     }
 }
 
+function showAuthInfo(){
+    authInfo.textContent = `Авторизован: ${charData.CharacterName} (ID: ${charData.CharacterID})`;
+    authBtn.style.display = 'none';
+    logoutBtn.style.display = 'inline-block';
+    buildMapBtn.style.display = 'inline-block';
+    savePathBtn.style.display = 'inline-block';
+    clearPathBtn.style.display = 'inline-block';
+    loadZKB();
+}
+
+async function loadZKB(){
+    try{
+        const r = await fetch(`${RENDER_SERVER}/zkb/${charData.CharacterID}`);
+        const data = await r.json();
+        zkbKillsDiv.innerHTML = '<strong>Последние киллмейлы (ZKB):</strong><br>';
+        data.slice(0,10).forEach(kill => {
+            const link = `https://zkillboard.com/kill/${kill.killID}/`;
+            const btn = `<button class="copyBtn" onclick="navigator.clipboard.writeText('${link}')">Copy</button>`;
+            zkbKillsDiv.innerHTML += `Система ${kill.solarSystemName}: <a href="${link}" target="_blank">${kill.victim.shipTypeName}</a> ${btn}<br>`;
+        });
+    }catch(e){ console.error(e); }
+}
+
+async function getCurrentLocation(){
+    try{
+        const token = localStorage.getItem('eve_token');
+        const r = await fetch('https://esi.evetech.net/latest/characters/'+charData.CharacterID+'/location/', {
+            headers: {Authorization:`Bearer ${token}`}
+        });
+        if(!r.ok) throw new Error('Не удалось получить текущее местоположение');
+        const data = await r.json();
+        return data.solar_system_id || null;
+    }catch(e){ console.error(e); return null; }
+}
+
+function buildMap(){
+    if(!historyWH.length) historyWH.push({systemID:0, systemName:'Start'});
+    const nodes = historyWH.map((h,i)=>({id:i,label:h.systemName}));
+    const edges = historyWH.map((h,i)=> i>0 ? {from:i-1,to:i} : null).filter(e=>e);
+    const data = {nodes, edges};
+    const options = {};
+    new vis.Network(container, data, options);
+}
+
+function savePath(){
+    fetch(`${RENDER_SERVER}/location`,{
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({characterID:charData.CharacterID, systemID:0, systemName:'System'})
+    }).then(r=>r.json()).then(console.log);
+}
+
+function clearPath(){
+    fetch(`${RENDER_SERVER}/history/${charData.CharacterID}`,{method:'DELETE'}).then(r=>r.json()).then(()=>{
+        historyWH=[];
+        buildMap();
+    });
+}
+
 authBtn.addEventListener('click', login);
 logoutBtn.addEventListener('click', logout);
+buildMapBtn.addEventListener('click', buildMap);
+savePathBtn.addEventListener('click', savePath);
+clearPathBtn.addEventListener('click', clearPath);
+
 handleAuth();
 </script>
 </body>
