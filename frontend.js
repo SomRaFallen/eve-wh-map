@@ -8,17 +8,13 @@ const zkbAuthBtn = document.getElementById('zkbAuthBtn');
 const saveLocBtn = document.getElementById('saveLocBtn');
 const clearBtn = document.getElementById('clearBtn');
 const loadZkbBtn = document.getElementById('loadZkbBtn');
-
 const searchInput = document.getElementById('searchInput');
 const searchBtn = document.getElementById('searchBtn');
 const killsList = document.getElementById('killsList');
-
 const systemTitle = document.getElementById('systemTitle');
 const systemMeta = document.getElementById('systemMeta');
-
 const saveMapBtn = document.getElementById('saveMapBtn');
 const loadMapBtn = document.getElementById('loadMapBtn');
-
 const langSelect = document.getElementById('langSelect');
 const authInfo = document.getElementById('authInfo');
 
@@ -26,7 +22,7 @@ let accessToken = null;
 let zkbToken = null;
 let currentCharacter = null;
 
-// --- Мультиязычность ---
+// --- язык ---
 let currentLang = 'ru';
 const translations = {
   ru:{ auth:"Авторизоваться (EVE SSO)", logout:"Выйти", zkbAuth:"Авторизация ZKB", saveLoc:"Сохранить локацию",
@@ -58,13 +54,11 @@ function setLanguage(lang){
   document.getElementById('actionsTitle').textContent = t.actions;
   authInfo.textContent = currentCharacter ? t.authInfo + currentCharacter.CharacterName : t.notAuth;
 }
-
 langSelect.addEventListener('change', e=>setLanguage(e.target.value));
 
-// --- Инициализация карты ---
+// --- карта ---
 let nodes = new vis.DataSet();
 let edges = new vis.DataSet();
-
 const container = document.getElementById('map');
 const data = { nodes, edges };
 const options = {
@@ -74,14 +68,13 @@ const options = {
   manipulation:{enabled:true, addNode:true, addEdge:true, editNode:true, editEdge:true, deleteNode:true, deleteEdge:true}
 };
 const network = new vis.Network(container, data, options);
-
-network.on("selectNode", function(params){
+network.on("selectNode", params=>{
   const node = nodes.get(params.nodes[0]);
   systemTitle.textContent = "Система: " + node.label;
   systemMeta.textContent = node.meta || "Информации нет";
 });
 
-// --- EVE SSO ---
+// --- SSO ---
 authBtn.addEventListener('click', ()=>{
   const state = Math.random().toString(36).substring(2);
   const url = `https://login.eveonline.com/v2/oauth/authorize?response_type=code&redirect_uri=${encodeURIComponent(REDIRECT_URI)}&client_id=${CLIENT_ID}&scope=publicData esi-location.read_location.v1&state=${state}`;
@@ -99,7 +92,7 @@ logoutBtn.addEventListener('click', ()=>{
   loadZkbBtn.style.display='none';
 });
 
-// --- Обработка редиректа SSO ---
+// --- редирект SSO ---
 async function handleRedirect(){
   const params = new URLSearchParams(window.location.search);
   if(params.has('code')){
@@ -121,10 +114,7 @@ async function handleRedirect(){
       saveLocBtn.style.display='inline-block';
       clearBtn.style.display='inline-block';
       loadZkbBtn.style.display='inline-block';
-
-      // Добавляем узел с текущей системой для карты
-      nodes.clear();
-      edges.clear();
+      nodes.clear(); edges.clear();
       nodes.add({ id: 1, label: "J114337", meta: "Текущая система" });
     }catch(e){ authInfo.textContent='Ошибка авторизации: '+e.message; console.error(e);}
     window.history.replaceState({}, document.title, window.location.pathname);
@@ -138,73 +128,86 @@ zkbAuthBtn.addEventListener('click', async ()=>{
     const resp = await fetch(`${SERVER}/zkb/exchange`, {
       method:'POST',
       headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({ characterId: currentCharacter.CharacterID })
+      body: JSON.stringify({ characterId: currentCharacter.CharacterID })
     });
     if(!resp.ok) throw new Error(await resp.text());
     const data = await resp.json();
     zkbToken = data.access_token;
-    alert('ZKB авторизация успешна!');
+    if(zkbToken) alert('ZKB авторизация успешна!');
+    else alert('Ошибка: токен не получен');
   }catch(e){console.error(e); alert('Ошибка ZKB: '+e.message);}
 });
 
-// --- Маршрут ---
-saveLocBtn.addEventListener('click', async ()=>{
-  if(!currentCharacter) return alert('Авторизуйтесь');
-  try{
-    await fetch(`${SERVER}/route`, {
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ characterId: currentCharacter.CharacterID, nodes: nodes.get(), edges: edges.get() })
-    });
-    alert('Маршрут сохранен');
-  }catch(e){console.error(e); alert('Ошибка сохранения');}
-});
-
-clearBtn.addEventListener('click', async ()=>{
-  nodes.clear(); edges.clear();
-  try{
-    await fetch(`${SERVER}/route`, {
-      method:'DELETE',
-      headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ characterId: currentCharacter.CharacterID })
-    });
-    alert('Маршрут очищен');
-  }catch(e){console.error(e);}
-});
-
-loadMapBtn.addEventListener('click', async ()=>{
-  if(!currentCharacter) return alert('Авторизуйтесь');
-  try{
-    const resp = await fetch(`${SERVER}/route?characterId=${currentCharacter.CharacterID}`);
-    const data = await resp.json();
-    nodes.clear(); edges.clear();
-    nodes.add(data.nodes || []);
-    edges.add(data.edges || []);
-  }catch(e){console.error(e);}
-});
-
-// --- Киллы ZKB ---
+// --- Загрузка киллмейлов ---
 loadZkbBtn.addEventListener('click', async ()=>{
-  if(!zkbToken) return alert('Сначала авторизуйтесь в ZKB');
+  if(!currentCharacter) return alert('Сначала авторизуйтесь');
   try{
     const resp = await fetch(`${SERVER}/zkb/kills?characterId=${currentCharacter.CharacterID}`);
+    if(!resp.ok) throw new Error(await resp.text());
     const data = await resp.json();
     killsList.innerHTML='';
     data.kills.forEach(k=>{
       const div = document.createElement('div');
       div.className='kill';
-      div.innerHTML=`<div class="system">${k.system}</div><div class="meta">${k.date}</div><div class="ship">${k.ship}</div>`;
+      div.innerHTML=`<span class="system">${k.system}</span> <span class="meta">${k.date}</span> <span class="ship">${k.ship}</span>`;
       killsList.appendChild(div);
     });
-  }catch(e){console.error(e);}
+  }catch(e){ console.error(e); alert('Ошибка ZKB: '+e.message);}
 });
 
-// --- Поиск персонажа (заглушка) ---
-searchBtn.addEventListener('click', ()=>{
-  const val = searchInput.value.trim();
-  if(!val) return;
-  alert('Поиск персонажей пока не реализован на фронтенде. Можно подключить сервер /search.');
+// --- Сохранение маршрута ---
+saveMapBtn.addEventListener('click', async ()=>{
+  if(!currentCharacter) return alert('Сначала авторизуйтесь');
+  try{
+    const resp = await fetch(`${SERVER}/route`, {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ characterId: currentCharacter.CharacterID, nodes:nodes.get(), edges:edges.get() })
+    });
+    if(!resp.ok) throw new Error(await resp.text());
+    alert('Маршрут сохранён');
+  }catch(e){ console.error(e); alert('Ошибка сохранения маршрута: '+e.message);}
 });
 
+// --- Загрузка маршрута ---
+loadMapBtn.addEventListener('click', async ()=>{
+  if(!currentCharacter) return alert('Сначала авторизуйтесь');
+  try{
+    const resp = await fetch(`${SERVER}/route?characterId=${currentCharacter.CharacterID}`);
+    if(!resp.ok) throw new Error(await resp.text());
+    const data = await resp.json();
+    nodes.clear(); edges.clear();
+    nodes.add(data.nodes); edges.add(data.edges);
+  }catch(e){ console.error(e); alert('Ошибка загрузки маршрута: '+e.message);}
+});
+
+// --- Очистка маршрута ---
+clearBtn.addEventListener('click', async ()=>{
+  if(!currentCharacter) return alert('Сначала авторизуйтесь');
+  try{
+    const resp = await fetch(`${SERVER}/route`, {
+      method:'DELETE',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ characterId: currentCharacter.CharacterID })
+    });
+    if(!resp.ok) throw new Error(await resp.text());
+    nodes.clear(); edges.clear();
+    alert('Маршрут очищен');
+  }catch(e){ console.error(e); alert('Ошибка очистки маршрута: '+e.message);}
+});
+
+// --- Поиск персонажей через ZKB ---
+searchBtn.addEventListener('click', async ()=>{
+  const name = searchInput.value.trim();
+  if(!name) return alert('Введите имя персонажа');
+  try{
+    const resp = await fetch(`${SERVER}/zkb/search?name=${encodeURIComponent(name)}`);
+    if(!resp.ok) throw new Error(await resp.text());
+    const data = await resp.json();
+    alert('Найдено персонажей: '+data.results.map(r=>r.name).join(', '));
+  }catch(e){ console.error(e); alert('Ошибка поиска: '+e.message);}
+});
+
+// --- Запуск ---
 handleRedirect();
-setLanguage(currentLang);
+setLanguage('ru');
