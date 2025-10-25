@@ -18,13 +18,40 @@ const loadMapBtn = document.getElementById('loadMapBtn');
 const langSelect = document.getElementById('langSelect');
 const authInfo = document.getElementById('authInfo');
 
-let accessToken = localStorage.getItem('accessToken');
-let zkbToken = localStorage.getItem('zkbToken');
+let accessToken = localStorage.getItem('accessToken') || null;
+let zkbToken = localStorage.getItem('zkbToken') || null;
 let currentCharacter = JSON.parse(localStorage.getItem('currentCharacter')) || null;
 
-// --- язык ---
+// --- Карта ---
+let nodes = new vis.DataSet();
+let edges = new vis.DataSet();
+const container = document.getElementById('map');
+const data = { nodes, edges };
+const options = {
+  nodes:{color:{background:'#f5d742', border:'#ffea75'}, font:{color:'#061137'}},
+  edges:{color:'#f5d742', width:2},
+  physics:{enabled:true, stabilization:true},
+  manipulation:{enabled:true, addNode:true, addEdge:true, editNode:true, editEdge:true, deleteNode:true, deleteEdge:true}
+};
+const network = new vis.Network(container, data, options);
+network.on("selectNode", params=>{
+  const node = nodes.get(params.nodes[0]);
+  systemTitle.textContent = "Система: " + node.label;
+  systemMeta.textContent = node.meta || "Информации нет";
+});
+
+// --- Язык ---
 let currentLang = 'ru';
-const translations = { /* как в предыдущем коде */ };
+const translations = {
+  ru:{auth:"Авторизоваться (EVE SSO)", logout:"Выйти", zkbAuth:"Авторизация ZKB", saveLoc:"Сохранить локацию", clearRoute:"Очистить маршрут",
+      loadZkb:"Загрузить киллы ZKB", searchPlaceholder:"Поиск персонажа или ID", lastKills:"Последние киллмейлы",
+      map:"Карта (vis-network)", saveMap:"Сохранить карту", loadMap:"Загрузить карту", actions:"Действия",
+      authInfo:"Авторизован: ", notAuth:"Не авторизован"},
+  ua:{auth:"Авторизуватися (EVE SSO)", logout:"Вийти", zkbAuth:"Авторизація ZKB", saveLoc:"Зберегти локацію", clearRoute:"Очистити маршрут",
+      loadZkb:"Завантажити кілли ZKB", searchPlaceholder:"Пошук персонажа або ID", lastKills:"Останні кіллмейли",
+      map:"Карта (vis-network)", saveMap:"Зберегти карту", loadMap:"Завантажити карту", actions:"Дії",
+      authInfo:"Авторизований: ", notAuth:"Не авторизований"}
+};
 
 function setLanguage(lang){
   currentLang = lang;
@@ -44,25 +71,7 @@ function setLanguage(lang){
   authInfo.textContent = currentCharacter ? t.authInfo + currentCharacter.CharacterName : t.notAuth;
 }
 
-// --- карта ---
-let nodes = new vis.DataSet();
-let edges = new vis.DataSet();
-const container = document.getElementById('map');
-const data = { nodes, edges };
-const options = {
-  nodes:{color:{background:'#f5d742', border:'#ffea75'}, font:{color:'#061137'}},
-  edges:{color:'#f5d742', width:2},
-  physics:{enabled:true, stabilization:true},
-  manipulation:{enabled:true, addNode:true, addEdge:true, editNode:true, editEdge:true, deleteNode:true, deleteEdge:true}
-};
-const network = new vis.Network(container, data, options);
-network.on("selectNode", params=>{
-  const node = nodes.get(params.nodes[0]);
-  systemTitle.textContent = "Система: " + node.label;
-  systemMeta.textContent = node.meta || "Информации нет";
-});
-
-// --- Авторизация SSO ---
+// --- Обработчики кнопок и SSO ---
 authBtn.addEventListener('click', ()=>{
   const state = Math.random().toString(36).substring(2);
   const url = `https://login.eveonline.com/v2/oauth/authorize?response_type=code&redirect_uri=${encodeURIComponent(REDIRECT_URI)}&client_id=${CLIENT_ID}&scope=publicData esi-location.read_location.v1&state=${state}`;
@@ -70,7 +79,7 @@ authBtn.addEventListener('click', ()=>{
 });
 
 logoutBtn.addEventListener('click', ()=>{
-  accessToken=null; currentCharacter=null;
+  accessToken=null; currentCharacter=null; zkbToken=null;
   localStorage.clear();
   authInfo.textContent = translations[currentLang].notAuth;
   authBtn.style.display='inline-block';
@@ -81,7 +90,7 @@ logoutBtn.addEventListener('click', ()=>{
   loadZkbBtn.style.display='none';
 });
 
-// --- редирект SSO ---
+// --- Обработка редиректа после SSO ---
 async function handleRedirect(){
   const params = new URLSearchParams(window.location.search);
   if(params.has('code')){
@@ -109,7 +118,7 @@ async function handleRedirect(){
     }catch(e){ authInfo.textContent='Ошибка авторизации: '+e.message; console.error(e);}
     window.history.replaceState({}, document.title, window.location.pathname);
   } else if(currentCharacter){
-    // если уже авторизован в localStorage
+    // уже авторизован
     authInfo.textContent = translations[currentLang].authInfo + currentCharacter.CharacterName;
     authBtn.style.display='none';
     logoutBtn.style.display='inline-block';
@@ -124,3 +133,5 @@ async function handleRedirect(){
 
 handleRedirect();
 setLanguage('ru');
+
+langSelect.addEventListener('change', ()=>setLanguage(langSelect.value));
