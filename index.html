@@ -116,7 +116,7 @@ handleAuth();
 
 // === ESI FUNCTIONS ===
 async function esiSearchCharacter(name){
-  const url = `${ESI_BASE}/search/?categories=character&search=${encodeURIComponent(name)}&strict=true`;
+  const url = `${ESI_BASE}/search?categories=character&search=${encodeURIComponent(name)}&strict=true`;
   const r = await fetch(url);
   if(!r.ok) throw new Error('Ошибка поиска персонажа: '+r.status);
   const j = await r.json();
