@@ -87,29 +87,49 @@ function logout(){
 
 async function handleAuth(){
     const params = new URLSearchParams(window.location.search);
+    let char, token;
+
     if(params.has('code')){
         const code = params.get('code');
         try{
             const tokenData = await exchangeCodeForToken(code);
-            const verify = await getCharacterInfo(tokenData.access_token);
-            localStorage.setItem('eve_token', tokenData.access_token);
-            localStorage.setItem('eve_char', JSON.stringify(verify));
-            authInfo.textContent = `Авторизован: ${verify.CharacterName} (ID: ${verify.CharacterID})`;
+            token = tokenData.access_token;
+
+            const verify = await getCharacterInfo(token);
+            char = verify;
+            localStorage.setItem('eve_token', token);
+            localStorage.setItem('eve_char', JSON.stringify(char));
+
+            authInfo.textContent = `Авторизован: ${char.CharacterName} (ID: ${char.CharacterID})`;
             authBtn.style.display = 'none';
             logoutBtn.style.display = 'inline-block';
             buildMapBtn.style.display = 'inline-block';
             savePathBtn.style.display = 'inline-block';
+
+            // === Сохраняем текущую систему сразу после авторизации ===
+            const defaultSystem = { system_id: 'J000000', system_name: 'J000000' }; 
+            await fetch(`${RENDER_SERVER}/location`, {
+                method: 'POST',
+                headers: { 'Content-Type':'application/json' },
+                body: JSON.stringify({
+                    characterID: char.CharacterID,
+                    systemID: defaultSystem.system_id,
+                    systemName: defaultSystem.system_name
+                })
+            });
+
             window.history.replaceState({}, document.title, window.location.pathname);
+
         }catch(e){
             console.error(e);
             authInfo.textContent = 'Ошибка авторизации: '+e.message;
         }
     } else {
-        const token = localStorage.getItem('eve_token');
-        const char = localStorage.getItem('eve_char');
-        if(token && char){
-            const c = JSON.parse(char);
-            authInfo.textContent = `Авторизован: ${c.CharacterName} (ID: ${c.CharacterID})`;
+        token = localStorage.getItem('eve_token');
+        const charData = localStorage.getItem('eve_char');
+        if(token && charData){
+            char = JSON.parse(charData);
+            authInfo.textContent = `Авторизован: ${char.CharacterName} (ID: ${char.CharacterID})`;
             authBtn.style.display = 'none';
             logoutBtn.style.display = 'inline-block';
             buildMapBtn.style.display = 'inline-block';
