@@ -7,7 +7,7 @@
 <script src="https://unpkg.com/vis-network@9.1.2/dist/vis-network.min.js"></script>
 <style>
 body{font-family:system-ui,-apple-system,Segoe UI,Roboto,'Helvetica Neue',Arial;margin:16px}
-button{font-size:1rem;padding:8px;margin:4px}
+input,button{font-size:1rem;padding:8px;margin:4px}
 #map{width:100%;height:420px;border:1px solid #ddd;margin-top:12px}
 #results{margin-top:12px}
 .note{color:#555;font-size:0.9rem}
@@ -15,15 +15,18 @@ button{font-size:1rem;padding:8px;margin:4px}
 </head>
 <body>
 <h2>EVE Online — Карта ВХ пилота</h2>
-<p class="note">Сайт использует <strong>EVE SSO</strong> для авторизации и ESI API для получения недавних киллмейлов пилота.</p>
+<p class="note">Сайт использует <strong>EVE SSO</strong> для авторизации и ESI API для получения киллмейлов пилота и построения карты ВХ.</p>
+
 <div>
 <button id="authBtn">Авторизоваться через EVE Online</button>
 <button id="logoutBtn" style="display:none">Выйти</button>
 </div>
 <div id="authInfo" class="note"></div>
 <div>
-<button id="buildMapBtn" style="display:none">Построить карту ВХ</button>
+<input id="charName" placeholder="Имя пилота (например: Vyvanse)" style="width:50%">
+<button id="searchBtn">Найти и построить карту</button>
 </div>
+
 <div id="status" class="note"></div>
 <div id="map"></div>
 <div id="results"></div>
@@ -31,14 +34,15 @@ button{font-size:1rem;padding:8px;margin:4px}
 <script>
 const CLIENT_ID = '5a40c55151c241e3a007f2562fd4e1dd';
 const REDIRECT_URI = window.location.origin + window.location.pathname;
-const SCOPES = 'esi-killmails.read_killmails.v1 esi-location.read_location.v1';
+const SCOPES = 'esi-killmails.read_killmails.v1 esi-location.read_location.v1 esi-search.search_structures.v1';
 const ESI_BASE = 'https://esi.evetech.net/latest';
 const PROXY_URL = 'https://eve-proxy.onrender.com/exchange';
 
 const authBtn = document.getElementById('authBtn');
 const logoutBtn = document.getElementById('logoutBtn');
 const authInfo = document.getElementById('authInfo');
-const buildMapBtn = document.getElementById('buildMapBtn');
+const searchBtn = document.getElementById('searchBtn');
+const charNameInput = document.getElementById('charName');
 const status = document.getElementById('status');
 const results = document.getElementById('results');
 const container = document.getElementById('map');
@@ -69,9 +73,6 @@ function logout(){
     localStorage.removeItem('eve_token');
     localStorage.removeItem('eve_char');
     authInfo.textContent = '';
-    logoutBtn.style.display = 'none';
-    authBtn.style.display = 'inline-block';
-    buildMapBtn.style.display = 'none';
 }
 
 async function handleAuth(){
@@ -86,13 +87,12 @@ async function handleAuth(){
             authInfo.textContent = `Авторизован: ${verify.CharacterName} (ID: ${verify.CharacterID})`;
             authBtn.style.display = 'none';
             logoutBtn.style.display = 'inline-block';
-            buildMapBtn.style.display = 'inline-block';
             window.history.replaceState({}, document.title, window.location.pathname);
-        } catch(e) {
+        }catch(e){
             console.error(e);
             authInfo.textContent = 'Ошибка авторизации: '+e.message;
         }
-    } else {
+    }else{
         const token = localStorage.getItem('eve_token');
         const char = localStorage.getItem('eve_char');
         if(token && char){
@@ -100,7 +100,6 @@ async function handleAuth(){
             authInfo.textContent = `Авторизован: ${c.CharacterName} (ID: ${c.CharacterID})`;
             authBtn.style.display = 'none';
             logoutBtn.style.display = 'inline-block';
-            buildMapBtn.style.display = 'inline-block';
         }
     }
 }
@@ -109,10 +108,23 @@ authBtn.addEventListener('click', login);
 logoutBtn.addEventListener('click', logout);
 handleAuth();
 
+async function esiSearchCharacter(name){
+    const url = `${ESI_BASE}/search/?categories=character&search=${encodeURIComponent(name)}&strict=true`;
+    const r = await fetch(url, {
+        headers: { 'User-Agent': 'EVE-WH-Map/1.0 (contact@example.com)' }
+    });
+    if(r.status===404) return null;
+    if(!r.ok) throw new Error('Ошибка поиска персонажа: '+r.status);
+    const j = await r.json();
+    const chars = j.character || [];
+    return chars[0] || null;
+}
+
 async function esiGetRecentKillmails(character_id, token){
     const url = `${ESI_BASE}/v1/characters/${character_id}/killmails/recent/`;
     const headers = token ? {Authorization:`Bearer ${token}`} : {};
     const r = await fetch(url,{headers});
+    if(r.status===404) return []; // нет киллмейлов
     if(!r.ok) throw new Error('Ошибка получения киллмейлов: '+r.status);
     return await r.json();
 }
@@ -134,52 +146,59 @@ function drawNetwork(nodesArr, edgesArr){
     new vis.Network(container, data, options);
 }
 
-buildMapBtn.addEventListener('click', async ()=>{
+searchBtn.addEventListener('click', async ()=>{
+    const name = charNameInput.value.trim();
     results.innerHTML = '';
     container.innerHTML = '';
-    const token = localStorage.getItem('eve_token');
-    const char = JSON.parse(localStorage.getItem('eve_char'));
-    const charId = char.CharacterID;
-    const charName = char.CharacterName;
+    if(!name){ status.textContent='Введите имя персонажа'; return; }
 
+    const token = localStorage.getItem('eve_token');
     try{
-        status.textContent = 'Получаю киллмейлы...';
+        status.textContent='Поиск персонажа...';
+        const charId = await esiSearchCharacter(name);
+        if(!charId){ status.textContent='Персонаж не найден'; return; }
+
+        status.textContent='Получаю киллмейлы...';
         const km = await esiGetRecentKillmails(charId, token);
-        if(!Array.isArray(km) || km.length===0){ status.textContent='Нет данных о киллмейлах'; return; }
+        if(km.length===0){ status.textContent='Нет киллмейлов'; return; }
 
         const uniq = [...new Set(km.map(x=>x.solar_system_id))];
-        status.textContent = `Найдено ${uniq.length} систем...`;
+        status.textContent=`Найдено ${uniq.length} систем...`;
 
         const systems = {};
-        const concurrency = 6;
-        for(let i=0;i<uniq.length;i+=concurrency){
-            const batch = uniq.slice(i,i+concurrency);
-            await Promise.all(batch.map(async sid=>{
-                try{ const s = await esiGetSystem(sid); systems[sid]=s.name; } catch(e){ systems[sid]='?'; }
-            }));
+        for(const sid of uniq){
+            try{ const s = await esiGetSystem(sid); systems[sid]=s.name; }catch(e){ systems[sid]='?'; }
         }
 
         const wormholeEntries = Object.entries(systems).filter(([id,name])=>isWormholeSystemName(name));
-        status.textContent = `Найдено ${wormholeEntries.length} ВХ систем.`;
+        status.textContent=`Найдено ${wormholeEntries.length} ВХ систем.`;
 
         const nodes = [];
         const edges = [];
-        nodes.push(charName);
+        nodes.push(name);
         wormholeEntries.forEach(([id,n],idx)=>{ nodes.push(n); edges.push({from:0,to:idx+1}); });
+
         if(nodes.length>1) drawNetwork(nodes, edges);
 
+        // показываем рядом летающих пилотов (из киллмейлов)
+        const nearby = [...new Set(km.map(k=>k.killer_id || k.victim_id))].filter(id=>id!==charId);
         const html = [];
         html.push('<h3>Системы:</h3><ul>');
         for(const [sid,n] of Object.entries(systems)){
-            const flag = isWormholeSystemName(n) ? ' — ВХ' : '';
+            const flag = isWormholeSystemName(n)? ' — ВХ':'';
             html.push(`<li>${n}${flag}</li>`);
         }
         html.push('</ul>');
+        if(nearby.length>0){
+            html.push('<h3>Рядом летают (по последним киллмейлам):</h3><ul>');
+            for(const id of nearby) html.push(`<li>ID: ${id}</li>`);
+            html.push('</ul>');
+        }
         results.innerHTML = html.join('');
-        status.textContent = 'Готово';
-    } catch(e) {
+        status.textContent='Готово';
+    }catch(e){
         console.error(e);
-        status.textContent = 'Ошибка: '+e.message;
+        status.textContent='Ошибка: '+e.message;
     }
 });
 </script>
