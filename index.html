@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>EVE — Карта ВХ и киллмейлы</title>
+<title>EVE — Карта перемещений ВХ</title>
 <script src="https://unpkg.com/vis-network@9.1.2/dist/vis-network.min.js"></script>
 <style>
 body{font-family:system-ui,-apple-system,Segoe UI,Roboto,'Helvetica Neue',Arial;margin:16px}
@@ -39,6 +39,7 @@ const REDIRECT_URI = window.location.origin + window.location.pathname;
 const SCOPES = 'esi-location.read_location.v1';
 const ESI_BASE = 'https://esi.evetech.net/latest';
 const PROXY_URL = 'https://eve-proxy.onrender.com/exchange';
+const RENDER_SERVER = 'https://eve-proxy.onrender.com'; 
 const ZKB_BASE = 'https://zkillboard.com/api/characterID/';
 
 const authBtn = document.getElementById('authBtn');
@@ -144,14 +145,45 @@ async function fetchZKBBattles(characterID){
     }catch(e){ zkbKillsDiv.innerHTML += 'Ошибка ZKB: '+e.message; }
 }
 
-function getFakeWHHistory(){
-    // Для примера фиктивная история ВХ
-    return [
-        {id:31000001,name:'J123456'},
-        {id:31000002,name:'J234567'},
-        {id:31000003,name:'J345678'},
-        {id:31000001,name:'J123456'}
-    ];
+async function esiGetCurrentLocation(character_id, token){
+    const url = `${ESI_BASE}/v2/characters/${character_id}/location/`;
+    const r = await fetch(url,{headers:{Authorization:`Bearer ${token}`}});
+    if(r.status===404) return null;
+    if(!r.ok) throw new Error('Ошибка получения локации: '+r.status);
+    return await r.json();
+}
+
+async function esiGetSystem(system_id){
+    const url = `${ESI_BASE}/v4/universe/systems/${system_id}/`;
+    const r = await fetch(url);
+    if(!r.ok) throw new Error('Ошибка получения системы: '+r.status);
+    return await r.json();
+}
+
+async function saveCurrentSystem(characterID, system){
+    try {
+        await fetch(`${RENDER_SERVER}/location`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                characterID,
+                systemID: system.system_id,
+                systemName: system.name
+            })
+        });
+    } catch(e){ console.error('Ошибка сохранения системы:', e); }
+}
+
+async function getWHHistory(characterID){
+    try{
+        const r = await fetch(`${RENDER_SERVER}/history/${characterID}`);
+        if(!r.ok) return [];
+        const data = await r.json();
+        return data.filter(s => isWormholeSystem(s.name));
+    }catch(e){
+        console.error('Ошибка получения истории:', e);
+        return [];
+    }
 }
 
 buildMapBtn.addEventListener('click', async ()=>{
@@ -166,12 +198,19 @@ buildMapBtn.addEventListener('click', async ()=>{
     const charID = char.CharacterID;
 
     try{
-        status.textContent = 'Получаем историю ВХ...';
-        // Берем фиктивную историю, позже можно заменить на серверные данные
-        const history = getFakeWHHistory();
-        history.forEach(s=>{ historyWH.push(s); });
+        status.textContent = 'Получаем текущую систему...';
+        const loc = await esiGetCurrentLocation(charID, token);
+        if(!loc || !loc.solar_system_id){ status.textContent='Не удалось получить текущее местоположение'; return; }
+        const currentSystem = await esiGetSystem(loc.solar_system_id);
 
-        // Строим граф
+        await saveCurrentSystem(charID, currentSystem);
+
+        const history = await getWHHistory(charID);
+        if(isWormholeSystem(currentSystem.name)){
+            historyWH.push({id: currentSystem.system_id, name: currentSystem.name});
+        }
+        history.forEach(s=> historyWH.push(s));
+
         const nodes = [];
         const edges = [];
         nodes.push(charName);
@@ -183,7 +222,6 @@ buildMapBtn.addEventListener('click', async ()=>{
         });
         drawNetwork(nodes, edges);
 
-        // Вывод истории
         const html = [];
         html.push('<h3>История перемещений ВХ:</h3><ul>');
         historyWH.forEach(s=> html.push(`<li>${s.name}</li>`));
@@ -191,8 +229,6 @@ buildMapBtn.addEventListener('click', async ()=>{
         results.innerHTML = html.join('');
 
         status.textContent='Готово';
-
-        // Получаем последние киллмейлы с ZKB
         fetchZKBBattles(charID);
 
     }catch(e){
