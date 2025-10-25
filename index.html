@@ -10,50 +10,21 @@
 <body>
 <div class="app">
   <div class="left">
-    <div class="brand">
-      <div class="logo">WH</div>
-      <div>
-        <div class="title">EVE WH Map</div>
-        <div class="subtitle">в стиле Гвоздя</div>
-      </div>
-    </div>
     <div class="controls">
-      <select id="langSelect" class="btn">
-        <option value="ru">RU</option>
-        <option value="ua">UA</option>
-      </select>
-      <button id="authBtn" class="btn primary">Авторизоваться (EVE SSO)</button>
+      <button id="authBtn" class="btn primary">Авторизация EVE</button>
       <button id="logoutBtn" class="btn ghost" style="display:none">Выйти</button>
-      <button id="zkbAuthBtn" class="btn ghost">Авторизация ZKB</button>
-      <button id="saveLocBtn" class="btn">Сохранить локацию</button>
+      <button id="saveMapBtn" class="btn">Сохранить маршрут</button>
+      <button id="loadMapBtn" class="btn">Загрузить маршрут</button>
       <button id="clearBtn" class="btn">Очистить маршрут</button>
       <button id="loadZkbBtn" class="btn">Загрузить киллы ZKB</button>
     </div>
-    <div class="auth-info" id="authInfo">Не авторизован</div>
-    <div class="search-row">
-      <input id="searchInput" class="input" placeholder="Поиск персонажа или ID"/>
-      <button id="searchBtn" class="btn">Поиск</button>
-    </div>
-    <div id="killsList" class="kills"></div>
-    <footer>Powered by your Render API</footer>
+    <div id="authInfo">Не авторизован</div>
+    <input id="searchInput" placeholder="Поиск персонажа"/>
+    <button id="searchBtn">Поиск</button>
+    <div id="killsList"></div>
   </div>
   <div class="right">
-    <div class="map-card">
-      <div id="map">Карта (vis-network)</div>
-    </div>
-    <div class="right-bottom">
-      <div class="info-card">
-        <div id="systemTitle">Система: —</div>
-        <div id="systemMeta" class="small">Информации нет</div>
-      </div>
-      <div style="width:260px;" class="info-card">
-        <div id="actionsTitle">Действия</div>
-        <div class="small">
-          <button id="saveMapBtn" class="btn">Сохранить карту</button>
-          <button id="loadMapBtn" class="btn">Загрузить карту</button>
-        </div>
-      </div>
-    </div>
+    <div id="map" style="width:100%;height:500px;border:1px solid #fff"></div>
   </div>
 </div>
 <script src="frontend.js"></script>
