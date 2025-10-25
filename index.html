@@ -125,15 +125,24 @@ function initMap(){
   const options = {
     nodes:{color:{background:'#f5d742', border:'#ffea75'}, font:{color:'#061137'}},
     edges:{color:'#f5d742', width:2},
-    physics:{enabled:true, stabilization:true}
+    physics:{enabled:true, stabilization:true},
+    manipulation:{
+      enabled:true,
+      addNode:true,
+      addEdge:true,
+      editNode:true,
+      editEdge:true,
+      deleteNode:true,
+      deleteEdge:true
+    }
   };
   mapNetwork = new vis.Network(container, data, options);
 }
 
-// SSO login
+// Авторизация SSO
 authBtn.addEventListener('click', ()=>{
   const state = Math.random().toString(36).substring(2);
-  const url = `https://login.eveonline.com/v2/oauth/authorize?response_type=code&redirect_uri=${encodeURIComponent(REDIRECT_URI)}&client_id=${CLIENT_ID}&scope=esi-location.read_location.v1&state=${state}`;
+  const url = `https://login.eveonline.com/v2/oauth/authorize?response_type=code&redirect_uri=${encodeURIComponent(REDIRECT_URI)}&client_id=${CLIENT_ID}&scope=publicData esi-location.read_location.v1&state=${state}`;
   window.location.href = url;
 });
 
@@ -145,6 +154,7 @@ logoutBtn.addEventListener('click', ()=>{
   applyAuthState(false);
 });
 
+// Обработка редиректа SSO
 async function handleRedirect(){
   const params = new URLSearchParams(window.location.search);
   if(params.has('code')){
@@ -208,9 +218,7 @@ saveLocBtn.addEventListener('click', async ()=>{
     if(!locResp.ok) throw new Error('Не удалось получить локацию');
     const loc = await locResp.json();
     const systemId = loc.solar_system_id;
-    // добавляем в nodes для карты
     nodes.add({id:systemId,label:'Система '+systemId});
-    // сохраняем на сервере
     await fetch(`${SERVER}/route/save`,{
       method:'POST',
       headers:{'Content-Type':'application/json'},
