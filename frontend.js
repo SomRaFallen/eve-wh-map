@@ -26,11 +26,7 @@ let accessToken = null;
 let zkbToken = null;
 let currentCharacter = null;
 
-let nodes = new vis.DataSet();
-let edges = new vis.DataSet();
-let network = null;
-
-// === Мультиязычность ===
+// --- Мультиязычность ---
 let currentLang = 'ru';
 const translations = {
   ru:{ auth:"Авторизоваться (EVE SSO)", logout:"Выйти", zkbAuth:"Авторизация ZKB", saveLoc:"Сохранить локацию",
@@ -65,25 +61,27 @@ function setLanguage(lang){
 
 langSelect.addEventListener('change', e=>setLanguage(e.target.value));
 
-// === Инициализация карты vis-network ===
-function initMap(){
-  const container = document.getElementById('map');
-  network = new vis.Network(container, { nodes, edges }, {
-    nodes:{color:{background:'#f5d742', border:'#ffea75'}, font:{color:'#061137'}},
-    edges:{color:'#f5d742', width:2},
-    physics:{enabled:true, stabilization:true},
-    manipulation:{enabled:true, addNode:true, addEdge:true, editNode:true, editEdge:true, deleteNode:true, deleteEdge:true}
-  });
+// --- Инициализация карты ---
+let nodes = new vis.DataSet();
+let edges = new vis.DataSet();
 
-  network.on("selectNode", function(params){
-    const node = nodes.get(params.nodes[0]);
-    systemTitle.textContent = "Система: " + node.label;
-    systemMeta.textContent = node.meta || "Информации нет";
-  });
-}
-initMap();
+const container = document.getElementById('map');
+const data = { nodes, edges };
+const options = {
+  nodes:{color:{background:'#f5d742', border:'#ffea75'}, font:{color:'#061137'}},
+  edges:{color:'#f5d742', width:2},
+  physics:{enabled:true, stabilization:true},
+  manipulation:{enabled:true, addNode:true, addEdge:true, editNode:true, editEdge:true, deleteNode:true, deleteEdge:true}
+};
+const network = new vis.Network(container, data, options);
 
-// === EVE SSO авторизация ===
+network.on("selectNode", function(params){
+  const node = nodes.get(params.nodes[0]);
+  systemTitle.textContent = "Система: " + node.label;
+  systemMeta.textContent = node.meta || "Информации нет";
+});
+
+// --- EVE SSO ---
 authBtn.addEventListener('click', ()=>{
   const state = Math.random().toString(36).substring(2);
   const url = `https://login.eveonline.com/v2/oauth/authorize?response_type=code&redirect_uri=${encodeURIComponent(REDIRECT_URI)}&client_id=${CLIENT_ID}&scope=publicData esi-location.read_location.v1&state=${state}`;
@@ -101,7 +99,7 @@ logoutBtn.addEventListener('click', ()=>{
   loadZkbBtn.style.display='none';
 });
 
-// === Обработка редиректа после SSO ===
+// --- Обработка редиректа SSO ---
 async function handleRedirect(){
   const params = new URLSearchParams(window.location.search);
   if(params.has('code')){
@@ -115,7 +113,7 @@ async function handleRedirect(){
       if(!resp.ok) throw new Error(await resp.text());
       const data = await resp.json();
       accessToken = data.access_token;
-      currentCharacter = data.character;
+      currentCharacter = data.character || { CharacterID:0, CharacterName:'Unknown' };
       authInfo.textContent = translations[currentLang].authInfo + currentCharacter.CharacterName;
       authBtn.style.display='none';
       logoutBtn.style.display='inline-block';
@@ -123,15 +121,17 @@ async function handleRedirect(){
       saveLocBtn.style.display='inline-block';
       clearBtn.style.display='inline-block';
       loadZkbBtn.style.display='inline-block';
-    }catch(e){
-      authInfo.textContent='Ошибка авторизации: '+e.message;
-      console.error(e);
-    }
+
+      // Добавляем узел с текущей системой для карты
+      nodes.clear();
+      edges.clear();
+      nodes.add({ id: 1, label: "J114337", meta: "Текущая система" });
+    }catch(e){ authInfo.textContent='Ошибка авторизации: '+e.message; console.error(e);}
     window.history.replaceState({}, document.title, window.location.pathname);
   }
 }
 
-// === ZKB авторизация ===
+// --- ZKB ---
 zkbAuthBtn.addEventListener('click', async ()=>{
   if(!currentCharacter) return alert('Сначала авторизуйтесь через EVE SSO');
   try{
@@ -147,10 +147,9 @@ zkbAuthBtn.addEventListener('click', async ()=>{
   }catch(e){console.error(e); alert('Ошибка ZKB: '+e.message);}
 });
 
-// === Кнопки карта/маршрут ===
+// --- Маршрут ---
 saveLocBtn.addEventListener('click', async ()=>{
   if(!currentCharacter) return alert('Авторизуйтесь');
-  const position = network.getPositions();
   try{
     await fetch(`${SERVER}/route`, {
       method:'POST',
@@ -184,7 +183,7 @@ loadMapBtn.addEventListener('click', async ()=>{
   }catch(e){console.error(e);}
 });
 
-// === Загрузка киллмейлов ZKB ===
+// --- Киллы ZKB ---
 loadZkbBtn.addEventListener('click', async ()=>{
   if(!zkbToken) return alert('Сначала авторизуйтесь в ZKB');
   try{
@@ -200,7 +199,7 @@ loadZkbBtn.addEventListener('click', async ()=>{
   }catch(e){console.error(e);}
 });
 
-// === Поиск персонажа ===
+// --- Поиск персонажа (заглушка) ---
 searchBtn.addEventListener('click', ()=>{
   const val = searchInput.value.trim();
   if(!val) return;
