@@ -167,6 +167,7 @@ saveLocBtn.addEventListener('click', ()=>{
 
 // --- ZKB авторизация ---
 zkbAuthBtn.addEventListener('click', ()=>{
+  if(!currentCharacter) return alert('Не авторизован');
   const state = Math.random().toString(36).substring(2);
   const url = `${SERVER}/zkbAuth?characterId=${currentCharacter.CharacterID}&state=${state}`;
   window.open(url,'_blank');
