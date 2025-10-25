@@ -15,7 +15,7 @@ button { font-size: 1rem; padding:6px; margin:4px; }
 </head>
 <body>
 <h2>EVE Online — Карта перемещений WH</h2>
-<p class="note">Сохраняйте свои перемещения через вормхолы, редактируйте маршрут, просматривайте информацию о системах.</p>
+<p class="note">Сохраняйте свои перемещения, редактируйте маршрут, просматривайте информацию о системах.</p>
 
 <div>
   <button id="authBtn">Авторизоваться через EVE Online</button>
@@ -35,9 +35,9 @@ button { font-size: 1rem; padding:6px; margin:4px; }
 
 <script>
 const CLIENT_ID = '5a40c55151c241e3a007f2562fd4e1dd';
-const REDIRECT_URI = 'https://somrafallen.github.io/eve-wh-map/'; // должен точно совпадать с приложением EVE Online
+const REDIRECT_URI = 'https://somrafallen.github.io/eve-wh-map/';
 const SCOPES = 'esi-location.read_location.v1';
-const SERVER = 'https://eve-api.onrender.com'; // твой сервер на Render (HTTPS)
+const SERVER = 'https://eve-api.onrender.com';
 
 let charData = null;
 let historyData = [];
@@ -58,7 +58,6 @@ function login(){
 }
 
 async function exchangeCode(code){
-  // fetch на сервер Render, который обменивает код на токен
   const r = await fetch(`${SERVER}/exchange`, {
     method:'POST',
     headers:{'Content-Type':'application/json; charset=utf-8'},
@@ -70,7 +69,7 @@ async function exchangeCode(code){
 
 async function getCharacterInfo(token){
   const r = await fetch('https://esi.evetech.net/verify/', {
-    headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json; charset=utf-8'}
+    headers:{Authorization:`Bearer ${token}`, 'Content-Type':'application/json; charset=utf-8'}
   });
   if(!r.ok) throw new Error('Ошибка проверки токена');
   return await r.json();
@@ -140,7 +139,6 @@ function buildMap(){
   network.on('selectNode', params=>{
     const node = historyData[params.nodes[0]];
     infoDiv.textContent = `Система: ${node.systemName} | Время сохранения: ${node.timestamp}`;
-    // позже можно добавить информацию о сооружениях через ESI
   });
 }
 
@@ -148,14 +146,12 @@ async function saveCurrentSystem(){
   if(!charData) return alert('Не авторизован');
   const systemName = prompt('Введите название текущей системы:');
   if(!systemName) return;
-  const systemID = Math.floor(Math.random()*100000); // позже заменить на реальные systemID через ESI
-  const r = await fetch(`${SERVER}/location`,{
+  const systemID = Math.floor(Math.random()*100000);
+  await fetch(`${SERVER}/location`,{
     method:'POST',
     headers:{'Content-Type':'application/json'},
     body:JSON.stringify({characterID:charData.CharacterID, systemID, systemName})
   });
-  const data = await r.json();
-  console.log(data);
   await loadHistory();
 }
 
