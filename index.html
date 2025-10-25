@@ -40,7 +40,7 @@ const CLIENT_ID = '5a40c55151c241e3a007f2562fd4e1dd';
 const REDIRECT_URI = window.location.origin + window.location.pathname;
 const SCOPES = 'esi-location.read_location.v1';
 const PROXY_URL = '/exchange';
-const RENDER_SERVER = '';
+const RENDER_SERVER = 'https://eve-api.onrender.com';
 
 const authBtn = document.getElementById('authBtn');
 const logoutBtn = document.getElementById('logoutBtn');
@@ -62,7 +62,7 @@ function login(){
 }
 
 async function exchangeCodeForToken(code){
-    const r = await fetch(PROXY_URL, {
+    const r = await fetch(`${RENDER_SERVER}/exchange`, {
         method: 'POST',
         headers: {'Content-Type':'application/json; charset=utf-8'},
         body: JSON.stringify({ code })
