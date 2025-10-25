@@ -85,6 +85,25 @@ function logout(){
     savePathBtn.style.display = 'none';
 }
 
+async function getRealCurrentSystem(token, charID){
+    try{
+        // Получаем текущую систему через ESI
+        const r = await fetch(`https://esi.evetech.net/latest/characters/${charID}/location/`,{
+            headers: { Authorization: `Bearer ${token}` }
+        });
+        if(!r.ok) throw new Error('Не удалось получить текущее местоположение через ESI');
+        const data = await r.json(); // { solar_system_id: ... }
+        // Получаем имя системы
+        const rName = await fetch(`https://esi.evetech.net/latest/universe/systems/${data.solar_system_id}/`);
+        if(!rName.ok) throw new Error('Не удалось получить имя системы');
+        const systemData = await rName.json(); // { name: "J114337" }
+        return { system_id: data.solar_system_id, system_name: systemData.name };
+    }catch(e){
+        console.error(e);
+        return null;
+    }
+}
+
 async function handleAuth(){
     const params = new URLSearchParams(window.location.search);
     let char, token;
@@ -106,17 +125,19 @@ async function handleAuth(){
             buildMapBtn.style.display = 'inline-block';
             savePathBtn.style.display = 'inline-block';
 
-            // === Сохраняем текущую систему сразу после авторизации ===
-            const defaultSystem = { system_id: 'J000000', system_name: 'J000000' }; 
-            await fetch(`${RENDER_SERVER}/location`, {
-                method: 'POST',
-                headers: { 'Content-Type':'application/json' },
-                body: JSON.stringify({
-                    characterID: char.CharacterID,
-                    systemID: defaultSystem.system_id,
-                    systemName: defaultSystem.system_name
-                })
-            });
+            // === Получаем реальную текущую систему и сохраняем на сервер ===
+            const realSystem = await getRealCurrentSystem(token, char.CharacterID);
+            if(realSystem){
+                await fetch(`${RENDER_SERVER}/location`, {
+                    method:'POST',
+                    headers:{ 'Content-Type':'application/json' },
+                    body: JSON.stringify({
+                        characterID: char.CharacterID,
+                        systemID: realSystem.system_id,
+                        systemName: realSystem.system_name
+                    })
+                });
+            }
 
             window.history.replaceState({}, document.title, window.location.pathname);
 
@@ -211,13 +232,14 @@ buildMapBtn.addEventListener('click', async ()=>{
     const char = JSON.parse(localStorage.getItem('eve_char'));
     const charID = char.CharacterID;
     const charName = char.CharacterName;
+    const token = localStorage.getItem('eve_token');
 
     try{
         status.textContent = 'Получаем историю ВХ и текущее местоположение...';
 
         const history = await getWHHistory(charID);
 
-        let current = await getCurrentSystem(charID);
+        let current = await getRealCurrentSystem(token, charID);
         if(!current && history.length>0){
             current = history[history.length-1]; // fallback
         }
