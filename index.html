@@ -37,9 +37,8 @@ button{font-size:1rem;padding:8px;margin:4px}
 const CLIENT_ID = '5a40c55151c241e3a007f2562fd4e1dd';
 const REDIRECT_URI = window.location.origin + window.location.pathname;
 const SCOPES = 'esi-location.read_location.v1';
-const ESI_BASE = 'https://esi.evetech.net/latest';
 const PROXY_URL = 'https://eve-proxy.onrender.com/exchange';
-const RENDER_SERVER = 'https://eve-proxy.onrender.com'; 
+const RENDER_SERVER = 'https://eve-proxy.onrender.com';
 const ZKB_BASE = 'https://zkillboard.com/api/characterID/';
 
 const authBtn = document.getElementById('authBtn');
@@ -145,21 +144,17 @@ async function fetchZKBBattles(characterID){
     }catch(e){ zkbKillsDiv.innerHTML += 'Ошибка ZKB: '+e.message; }
 }
 
-async function esiGetCurrentLocation(character_id, token){
-    const url = `${ESI_BASE}/v2/characters/${character_id}/location/`;
-    const r = await fetch(url,{headers:{Authorization:`Bearer ${token}`}});
-    if(r.status===404) return null;
-    if(!r.ok) throw new Error('Ошибка получения локации: '+r.status);
-    return await r.json();
+// Получаем текущее местоположение через сервер Render
+async function getCurrentSystem(charID){
+    try{
+        const r = await fetch(`${RENDER_SERVER}/location?characterID=${charID}`);
+        if(!r.ok) return null;
+        const data = await r.json();
+        return data; // { system_id, system_name }
+    }catch(e){ console.error(e); return null; }
 }
 
-async function esiGetSystem(system_id){
-    const url = `${ESI_BASE}/v4/universe/systems/${system_id}/`;
-    const r = await fetch(url);
-    if(!r.ok) throw new Error('Ошибка получения системы: '+r.status);
-    return await r.json();
-}
-
+// Сохраняем текущую систему на сервер
 async function saveCurrentSystem(characterID, system){
     try {
         await fetch(`${RENDER_SERVER}/location`, {
@@ -174,6 +169,7 @@ async function saveCurrentSystem(characterID, system){
     } catch(e){ console.error('Ошибка сохранения системы:', e); }
 }
 
+// Получаем историю ВХ с сервера
 async function getWHHistory(characterID){
     try{
         const r = await fetch(`${RENDER_SERVER}/history/${characterID}`);
@@ -192,25 +188,36 @@ buildMapBtn.addEventListener('click', async ()=>{
     zkbKillsDiv.innerHTML = '<strong>Последние киллмейлы (ZKB):</strong><br>';
     historyWH = [];
 
-    const token = localStorage.getItem('eve_token');
     const char = JSON.parse(localStorage.getItem('eve_char'));
-    const charName = char.CharacterName;
     const charID = char.CharacterID;
+    const charName = char.CharacterName;
 
     try{
-        status.textContent = 'Получаем текущую систему...';
-        const loc = await esiGetCurrentLocation(charID, token);
-        if(!loc || !loc.solar_system_id){ status.textContent='Не удалось получить текущее местоположение'; return; }
-        const currentSystem = await esiGetSystem(loc.solar_system_id);
+        status.textContent = 'Получаем историю ВХ и текущее местоположение...';
 
-        await saveCurrentSystem(charID, currentSystem);
-
+        // История с сервера
         const history = await getWHHistory(charID);
-        if(isWormholeSystem(currentSystem.name)){
-            historyWH.push({id: currentSystem.system_id, name: currentSystem.name});
+
+        // Текущая система
+        let current = await getCurrentSystem(charID);
+        if(!current && history.length>0){
+            current = history[history.length-1]; // fallback на последнюю систему
+        }
+        if(!current){
+            status.textContent='Не удалось получить текущее местоположение';
+            return;
+        }
+
+        // Сохраняем текущее положение
+        await saveCurrentSystem(charID, current);
+
+        // Формируем историю для карты
+        if(isWormholeSystem(current.system_name)){
+            historyWH.push({id: current.system_id, name: current.system_name});
         }
         history.forEach(s=> historyWH.push(s));
 
+        // Строим граф
         const nodes = [];
         const edges = [];
         nodes.push(charName);
@@ -222,6 +229,7 @@ buildMapBtn.addEventListener('click', async ()=>{
         });
         drawNetwork(nodes, edges);
 
+        // История перемещений
         const html = [];
         html.push('<h3>История перемещений ВХ:</h3><ul>');
         historyWH.forEach(s=> html.push(`<li>${s.name}</li>`));
