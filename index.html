@@ -3,19 +3,20 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>EVE — Карта перемещений пилота</title>
+<title>EVE — Карта ВХ и киллмейлы</title>
 <script src="https://unpkg.com/vis-network@9.1.2/dist/vis-network.min.js"></script>
 <style>
 body{font-family:system-ui,-apple-system,Segoe UI,Roboto,'Helvetica Neue',Arial;margin:16px}
 button{font-size:1rem;padding:8px;margin:4px}
 #map{width:100%;height:420px;border:1px solid #ddd;margin-top:12px}
 #results{margin-top:12px}
+#zkbKills{margin-top:12px;border:1px solid #ddd;padding:8px;height:200px;overflow:auto;background:#f9f9f9}
 .note{color:#555;font-size:0.9rem}
 </style>
 </head>
 <body>
-<h2>EVE Online — Карта перемещений пилота</h2>
-<p class="note">Сайт использует <strong>EVE SSO</strong> и строит карту перемещений пилота. Можно сохранить путь в JSON.</p>
+<h2>EVE Online — Карта перемещений ВХ</h2>
+<p class="note">Карта перемещений персонажа только по вормхолам (ВХ). Последние киллмейлы берутся с ZKillboard.</p>
 
 <div>
 <button id="authBtn">Авторизоваться через EVE Online</button>
@@ -23,13 +24,14 @@ button{font-size:1rem;padding:8px;margin:4px}
 </div>
 <div id="authInfo" class="note"></div>
 <div>
-<button id="buildMapBtn" style="display:none">Построить карту перемещений</button>
+<button id="buildMapBtn" style="display:none">Построить карту ВХ</button>
 <button id="savePathBtn" style="display:none">Сохранить путь</button>
 </div>
 
 <div id="status" class="note"></div>
 <div id="map"></div>
 <div id="results"></div>
+<div id="zkbKills"><strong>Последние киллмейлы (ZKB):</strong><br></div>
 
 <script>
 const CLIENT_ID = '5a40c55151c241e3a007f2562fd4e1dd';
@@ -37,6 +39,7 @@ const REDIRECT_URI = window.location.origin + window.location.pathname;
 const SCOPES = 'esi-location.read_location.v1';
 const ESI_BASE = 'https://esi.evetech.net/latest';
 const PROXY_URL = 'https://eve-proxy.onrender.com/exchange';
+const ZKB_BASE = 'https://zkillboard.com/api/characterID/';
 
 const authBtn = document.getElementById('authBtn');
 const logoutBtn = document.getElementById('logoutBtn');
@@ -45,9 +48,10 @@ const buildMapBtn = document.getElementById('buildMapBtn');
 const savePathBtn = document.getElementById('savePathBtn');
 const status = document.getElementById('status');
 const results = document.getElementById('results');
+const zkbKillsDiv = document.getElementById('zkbKills');
 const container = document.getElementById('map');
 
-let historySystems = [];
+let historyWH = [];
 
 function login(){
     const state = Math.random().toString(36).substring(2);
@@ -118,22 +122,7 @@ authBtn.addEventListener('click', login);
 logoutBtn.addEventListener('click', logout);
 handleAuth();
 
-async function esiGetCurrentLocation(character_id, token){
-    const url = `${ESI_BASE}/v2/characters/${character_id}/location/`;
-    const r = await fetch(url,{headers:{Authorization:`Bearer ${token}`}});
-    if(r.status===404) return null;
-    if(!r.ok) throw new Error('Ошибка получения локации: '+r.status);
-    return await r.json();
-}
-
-async function esiGetSystem(system_id){
-    const url = `${ESI_BASE}/v4/universe/systems/${system_id}/`;
-    const r = await fetch(url);
-    if(!r.ok) throw new Error('Ошибка получения системы: '+r.status);
-    return await r.json();
-}
-
-function isWormholeSystemName(name){ return /^J\d+/i.test(name); }
+function isWormholeSystem(name){ return /^J\d+/i.test(name); }
 
 function drawNetwork(nodesArr, edgesArr){
     const nodes = new vis.DataSet(nodesArr.map((n,i)=>({id:i,label:n})));
@@ -143,58 +132,69 @@ function drawNetwork(nodesArr, edgesArr){
     new vis.Network(container, data, options);
 }
 
+async function fetchZKBBattles(characterID){
+    try{
+        const r = await fetch(`${ZKB_BASE}${characterID}/recent/`);
+        if(!r.ok) { zkbKillsDiv.innerHTML += 'Ошибка ZKB: '+r.status; return; }
+        const data = await r.json();
+        zkbKillsDiv.innerHTML = '<strong>Последние киллмейлы (ZKB):</strong><br>';
+        data.slice(0,10).forEach(k=>{
+            zkbKillsDiv.innerHTML += `${k.victim.shipTypeName} в ${k.solarSystemName} <br>`;
+        });
+    }catch(e){ zkbKillsDiv.innerHTML += 'Ошибка ZKB: '+e.message; }
+}
+
+function getFakeWHHistory(){
+    // Для примера фиктивная история ВХ
+    return [
+        {id:31000001,name:'J123456'},
+        {id:31000002,name:'J234567'},
+        {id:31000003,name:'J345678'},
+        {id:31000001,name:'J123456'}
+    ];
+}
+
 buildMapBtn.addEventListener('click', async ()=>{
     results.innerHTML = '';
     container.innerHTML = '';
-    historySystems = [];
+    zkbKillsDiv.innerHTML = '<strong>Последние киллмейлы (ZKB):</strong><br>';
+    historyWH = [];
 
     const token = localStorage.getItem('eve_token');
     const char = JSON.parse(localStorage.getItem('eve_char'));
     const charName = char.CharacterName;
-    const charId = char.CharacterID;
+    const charID = char.CharacterID;
 
     try{
-        status.textContent = 'Получаем текущее местоположение...';
-        const loc = await esiGetCurrentLocation(charId, token);
-        if(!loc || !loc.solar_system_id){ status.textContent='Не удалось получить текущее местоположение'; return; }
+        status.textContent = 'Получаем историю ВХ...';
+        // Берем фиктивную историю, позже можно заменить на серверные данные
+        const history = getFakeWHHistory();
+        history.forEach(s=>{ historyWH.push(s); });
 
-        const currentSystem = await esiGetSystem(loc.solar_system_id);
-        historySystems.push({id:currentSystem.system_id,name:currentSystem.name});
-
-        // Для примера добавим несколько соседних систем вручную
-        const fakeNearbySystems = [
-            {id:30000142,name:'Jita'},
-            {id:30000144,name:'Perimeter'},
-            {id:30002187,name:'Amarr'}
-        ];
-
-        fakeNearbySystems.forEach(s=>{
-            if(!historySystems.find(h=>h.name===s.name)) historySystems.push(s);
-        });
-
-        // Создание узлов и связей
+        // Строим граф
         const nodes = [];
         const edges = [];
         nodes.push(charName);
         let lastNode = 0;
-        historySystems.forEach((s)=>{
+        historyWH.forEach(s=>{
             nodes.push(s.name);
             edges.push({from:lastNode,to:nodes.length-1});
             lastNode = nodes.length-1;
         });
-
         drawNetwork(nodes, edges);
 
         // Вывод истории
         const html = [];
-        html.push('<h3>История перемещений:</h3><ul>');
-        historySystems.forEach(s=>{
-            const flag = isWormholeSystemName(s.name)? ' — ВХ':'';
-            html.push(`<li>${s.name}${flag}</li>`);
-        });
+        html.push('<h3>История перемещений ВХ:</h3><ul>');
+        historyWH.forEach(s=> html.push(`<li>${s.name}</li>`));
         html.push('</ul>');
         results.innerHTML = html.join('');
+
         status.textContent='Готово';
+
+        // Получаем последние киллмейлы с ZKB
+        fetchZKBBattles(charID);
+
     }catch(e){
         console.error(e);
         status.textContent='Ошибка: '+e.message;
@@ -202,12 +202,12 @@ buildMapBtn.addEventListener('click', async ()=>{
 });
 
 savePathBtn.addEventListener('click', ()=>{
-    if(historySystems.length===0){ alert('Нет данных для сохранения'); return; }
-    const blob = new Blob([JSON.stringify(historySystems,null,2)],{type:'application/json'});
+    if(historyWH.length===0){ alert('Нет данных для сохранения'); return; }
+    const blob = new Blob([JSON.stringify(historyWH,null,2)],{type:'application/json'});
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = 'path.json';
+    a.download = 'WH_path.json';
     a.click();
     URL.revokeObjectURL(url);
 });
