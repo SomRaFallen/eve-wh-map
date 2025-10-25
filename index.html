@@ -152,7 +152,7 @@ footer { color:var(--muted); font-size:12px; text-align:right; margin-top:8px }
 
   <div class="right">
     <div class="map-card">
-      <div id="map">Карта (включите построение карты/vis-network)</div>
+      <div id="map">Карта (vis-network можно подключить)</div>
     </div>
 
     <div class="right-bottom">
@@ -172,8 +172,101 @@ footer { color:var(--muted); font-size:12px; text-align:right; margin-top:8px }
 </div>
 
 <script>
-// Все JS функции и логика авторизации, работы с сервером и отображения карты остаются без изменений
-// Просто заменены цвета в CSS
+const SERVER = 'https://eve-proxy.onrender.com';
+const CLIENT_ID = '5a40c55151c241e3a007f2562fd4e1dd';
+const REDIRECT_URI = 'https://somrafallen.github.io/eve-wh-map/';
+
+const authBtn = document.getElementById('authBtn');
+const logoutBtn = document.getElementById('logoutBtn');
+const authInfo = document.getElementById('authInfo');
+const saveLocBtn = document.getElementById('saveLocBtn');
+const clearBtn = document.getElementById('clearBtn');
+const loadZkbBtn = document.getElementById('loadZkbBtn');
+
+const searchInput = document.getElementById('searchInput');
+const searchBtn = document.getElementById('searchBtn');
+const killsList = document.getElementById('killsList');
+
+const systemTitle = document.getElementById('systemTitle');
+const systemMeta = document.getElementById('systemMeta');
+
+const saveMapBtn = document.getElementById('saveMapBtn');
+const loadMapBtn = document.getElementById('loadMapBtn');
+
+let mapNetwork = null;
+let currentCharacter = null;
+let accessToken = null;
+
+// SSO login
+authBtn.addEventListener('click', ()=>{
+  const state = Math.random().toString(36).substring(2);
+  const url = `https://login.eveonline.com/v2/oauth/authorize?response_type=code&redirect_uri=${encodeURIComponent(REDIRECT_URI)}&client_id=${CLIENT_ID}&scope=esi-location.read_location.v1&state=${state}`;
+  window.location.href = url;
+});
+
+// logout
+logoutBtn.addEventListener('click', ()=>{
+  localStorage.removeItem('eve_token');
+  localStorage.removeItem('eve_char');
+  accessToken = null;
+  currentCharacter = null;
+  applyAuthState(false);
+});
+
+async function handleRedirect(){
+  const params = new URLSearchParams(window.location.search);
+  if(params.has('code')){
+    const code = params.get('code');
+    try{
+      const resp = await fetch(`${SERVER}/exchange`, {
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ code })
+      });
+      if(!resp.ok) throw new Error(await resp.text());
+      const data = await resp.json();
+      accessToken = data.access_token;
+      currentCharacter = data.character;
+      localStorage.setItem('eve_token', accessToken);
+      localStorage.setItem('eve_char', JSON.stringify(currentCharacter));
+      applyAuthState(true);
+      window.history.replaceState({}, document.title, window.location.pathname);
+    } catch(e){
+      authInfo.textContent = 'Ошибка авторизации: '+e.message;
+      console.error(e);
+    }
+  } else {
+    const tk = localStorage.getItem('eve_token');
+    const ch = localStorage.getItem('eve_char');
+    if(tk && ch){
+      accessToken = tk;
+      currentCharacter = JSON.parse(ch);
+      applyAuthState(true);
+    } else applyAuthState(false);
+  }
+}
+
+function applyAuthState(logged){
+  if(logged){
+    authBtn.style.display = 'none';
+    logoutBtn.style.display = 'inline-block';
+    saveLocBtn.style.display = 'inline-block';
+    clearBtn.style.display = 'inline-block';
+    loadZkbBtn.style.display = 'inline-block';
+    saveMapBtn.style.display = 'inline-block';
+    authInfo.textContent = `Авторизован: ${currentCharacter.CharacterName} (ID: ${currentCharacter.CharacterID})`;
+  } else {
+    authBtn.style.display = 'inline-block';
+    logoutBtn.style.display = 'none';
+    saveLocBtn.style.display = 'none';
+    clearBtn.style.display = 'none';
+    loadZkbBtn.style.display = 'none';
+    saveMapBtn.style.display = 'none';
+    authInfo.textContent = 'Не авторизован';
+  }
+}
+
+handleRedirect();
 </script>
 </body>
 </html>
