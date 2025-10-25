@@ -7,7 +7,7 @@
 <script src="https://unpkg.com/vis-network@9.1.2/dist/vis-network.min.js"></script>
 <style>
 body{font-family:system-ui,-apple-system,Segoe UI,Roboto,'Helvetica Neue',Arial;margin:16px}
-input,button{font-size:1rem;padding:8px;margin:4px}
+button{font-size:1rem;padding:8px;margin:4px}
 #map{width:100%;height:420px;border:1px solid #ddd;margin-top:12px}
 #results{margin-top:12px}
 .note{color:#555;font-size:0.9rem}
@@ -23,8 +23,7 @@ input,button{font-size:1rem;padding:8px;margin:4px}
 </div>
 <div id="authInfo" class="note"></div>
 <div>
-<input id="charName" placeholder="Имя пилота (например: Vyvanse)" style="width:50%">
-<button id="searchBtn">Найти и построить карту</button>
+<button id="buildMapBtn" style="display:none">Построить карту ВХ</button>
 </div>
 
 <div id="status" class="note"></div>
@@ -34,15 +33,14 @@ input,button{font-size:1rem;padding:8px;margin:4px}
 <script>
 const CLIENT_ID = '5a40c55151c241e3a007f2562fd4e1dd';
 const REDIRECT_URI = window.location.origin + window.location.pathname;
-const SCOPES = 'esi-killmails.read_killmails.v1 esi-location.read_location.v1 esi-search.search_structures.v1';
+const SCOPES = 'esi-killmails.read_killmails.v1 esi-location.read_location.v1';
 const ESI_BASE = 'https://esi.evetech.net/latest';
 const PROXY_URL = 'https://eve-proxy.onrender.com/exchange';
 
 const authBtn = document.getElementById('authBtn');
 const logoutBtn = document.getElementById('logoutBtn');
 const authInfo = document.getElementById('authInfo');
-const searchBtn = document.getElementById('searchBtn');
-const charNameInput = document.getElementById('charName');
+const buildMapBtn = document.getElementById('buildMapBtn');
 const status = document.getElementById('status');
 const results = document.getElementById('results');
 const container = document.getElementById('map');
@@ -73,6 +71,9 @@ function logout(){
     localStorage.removeItem('eve_token');
     localStorage.removeItem('eve_char');
     authInfo.textContent = '';
+    authBtn.style.display = 'inline-block';
+    logoutBtn.style.display = 'none';
+    buildMapBtn.style.display = 'none';
 }
 
 async function handleAuth(){
@@ -87,12 +88,13 @@ async function handleAuth(){
             authInfo.textContent = `Авторизован: ${verify.CharacterName} (ID: ${verify.CharacterID})`;
             authBtn.style.display = 'none';
             logoutBtn.style.display = 'inline-block';
+            buildMapBtn.style.display = 'inline-block';
             window.history.replaceState({}, document.title, window.location.pathname);
         }catch(e){
             console.error(e);
             authInfo.textContent = 'Ошибка авторизации: '+e.message;
         }
-    }else{
+    } else {
         const token = localStorage.getItem('eve_token');
         const char = localStorage.getItem('eve_char');
         if(token && char){
@@ -100,6 +102,7 @@ async function handleAuth(){
             authInfo.textContent = `Авторизован: ${c.CharacterName} (ID: ${c.CharacterID})`;
             authBtn.style.display = 'none';
             logoutBtn.style.display = 'inline-block';
+            buildMapBtn.style.display = 'inline-block';
         }
     }
 }
@@ -107,18 +110,6 @@ async function handleAuth(){
 authBtn.addEventListener('click', login);
 logoutBtn.addEventListener('click', logout);
 handleAuth();
-
-async function esiSearchCharacter(name){
-    const url = `${ESI_BASE}/search/?categories=character&search=${encodeURIComponent(name)}&strict=true`;
-    const r = await fetch(url, {
-        headers: { 'User-Agent': 'EVE-WH-Map/1.0 (contact@example.com)' }
-    });
-    if(r.status===404) return null;
-    if(!r.ok) throw new Error('Ошибка поиска персонажа: '+r.status);
-    const j = await r.json();
-    const chars = j.character || [];
-    return chars[0] || null;
-}
 
 async function esiGetRecentKillmails(character_id, token){
     const url = `${ESI_BASE}/v1/characters/${character_id}/killmails/recent/`;
@@ -146,54 +137,50 @@ function drawNetwork(nodesArr, edgesArr){
     new vis.Network(container, data, options);
 }
 
-searchBtn.addEventListener('click', async ()=>{
-    const name = charNameInput.value.trim();
+buildMapBtn.addEventListener('click', async ()=>{
     results.innerHTML = '';
     container.innerHTML = '';
-    if(!name){ status.textContent='Введите имя персонажа'; return; }
-
     const token = localStorage.getItem('eve_token');
-    try{
-        status.textContent='Поиск персонажа...';
-        const charId = await esiSearchCharacter(name);
-        if(!charId){ status.textContent='Персонаж не найден'; return; }
+    const char = JSON.parse(localStorage.getItem('eve_char'));
+    const charId = char.CharacterID;
+    const charName = char.CharacterName;
 
-        status.textContent='Получаю киллмейлы...';
+    try{
+        status.textContent = 'Получаю киллмейлы...';
         const km = await esiGetRecentKillmails(charId, token);
         if(km.length===0){ status.textContent='Нет киллмейлов'; return; }
 
-        const uniq = [...new Set(km.map(x=>x.solar_system_id))];
-        status.textContent=`Найдено ${uniq.length} систем...`;
-
         const systems = {};
-        for(const sid of uniq){
-            try{ const s = await esiGetSystem(sid); systems[sid]=s.name; }catch(e){ systems[sid]='?'; }
+        const systemKills = {};
+        for(const entry of km){
+            const sid = entry.solar_system_id;
+            try{
+                const s = await esiGetSystem(sid);
+                systems[sid]=s.name;
+            } catch(e){ systems[sid]='?'; }
+            // записываем последних пилотов в системе
+            if(!systemKills[sid]) systemKills[sid]=[];
+            if(entry.victim) systemKills[sid].push(`Victim: ${entry.victim.character_id||''}`);
+            if(entry.attackers) entry.attackers.forEach(a=>systemKills[sid].push(`Attacker: ${a.character_id||''}`));
         }
 
         const wormholeEntries = Object.entries(systems).filter(([id,name])=>isWormholeSystemName(name));
-        status.textContent=`Найдено ${wormholeEntries.length} ВХ систем.`;
 
         const nodes = [];
         const edges = [];
-        nodes.push(name);
+        nodes.push(charName);
         wormholeEntries.forEach(([id,n],idx)=>{ nodes.push(n); edges.push({from:0,to:idx+1}); });
-
         if(nodes.length>1) drawNetwork(nodes, edges);
 
-        // показываем рядом летающих пилотов (из киллмейлов)
-        const nearby = [...new Set(km.map(k=>k.killer_id || k.victim_id))].filter(id=>id!==charId);
         const html = [];
         html.push('<h3>Системы:</h3><ul>');
         for(const [sid,n] of Object.entries(systems)){
             const flag = isWormholeSystemName(n)? ' — ВХ':'';
-            html.push(`<li>${n}${flag}</li>`);
+            const kills = systemKills[sid] ? systemKills[sid].join(', ') : '';
+            html.push(`<li>${n}${flag} <br><small>Последние киллмейлы: ${kills}</small></li>`);
         }
         html.push('</ul>');
-        if(nearby.length>0){
-            html.push('<h3>Рядом летают (по последним киллмейлам):</h3><ul>');
-            for(const id of nearby) html.push(`<li>ID: ${id}</li>`);
-            html.push('</ul>');
-        }
+
         results.innerHTML = html.join('');
         status.textContent='Готово';
     }catch(e){
