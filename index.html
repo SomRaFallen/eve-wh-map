@@ -35,9 +35,9 @@ button { font-size: 1rem; padding:6px; margin:4px; }
 
 <script>
 const CLIENT_ID = '5a40c55151c241e3a007f2562fd4e1dd';
-const REDIRECT_URI = window.location.origin + window.location.pathname;
+const REDIRECT_URI = 'https://somrafallen.github.io/eve-wh-map/'; // должен точно совпадать с приложением EVE Online
 const SCOPES = 'esi-location.read_location.v1';
-const SERVER = 'https://eve-api.onrender.com'; // замени на свой сервер
+const SERVER = 'https://eve-api.onrender.com'; // твой сервер на Render (HTTPS)
 
 let charData = null;
 let historyData = [];
@@ -58,10 +58,11 @@ function login(){
 }
 
 async function exchangeCode(code){
+  // fetch на сервер Render, который обменивает код на токен
   const r = await fetch(`${SERVER}/exchange`, {
     method:'POST',
     headers:{'Content-Type':'application/json; charset=utf-8'},
-    body:JSON.stringify({code})
+    body: JSON.stringify({code})
   });
   if(!r.ok) throw new Error('Ошибка обмена кода');
   return await r.json();
@@ -139,7 +140,7 @@ function buildMap(){
   network.on('selectNode', params=>{
     const node = historyData[params.nodes[0]];
     infoDiv.textContent = `Система: ${node.systemName} | Время сохранения: ${node.timestamp}`;
-    // TODO: можно добавить данные о сооружениях через ESI
+    // позже можно добавить информацию о сооружениях через ESI
   });
 }
 
@@ -147,7 +148,7 @@ async function saveCurrentSystem(){
   if(!charData) return alert('Не авторизован');
   const systemName = prompt('Введите название текущей системы:');
   if(!systemName) return;
-  const systemID = Math.floor(Math.random()*100000); // можно заменить на реальный systemID через ESI
+  const systemID = Math.floor(Math.random()*100000); // позже заменить на реальные systemID через ESI
   const r = await fetch(`${SERVER}/location`,{
     method:'POST',
     headers:{'Content-Type':'application/json'},
@@ -160,7 +161,7 @@ async function saveCurrentSystem(){
 
 async function clearHistory(){
   if(!charData) return alert('Не авторизован');
-  const r = await fetch(`${SERVER}/history/${charData.CharacterID}`, {method:'DELETE'});
+  await fetch(`${SERVER}/history/${charData.CharacterID}`, {method:'DELETE'});
   await loadHistory();
 }
 
