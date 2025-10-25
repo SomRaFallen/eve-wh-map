@@ -1,4 +1,4 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="ru">
 <head>
 <meta charset="utf-8">
@@ -6,182 +6,169 @@
 <title>EVE WH Map</title>
 <script src="https://unpkg.com/vis-network@9.1.2/dist/vis-network.min.js"></script>
 <style>
-body{font-family:system-ui,-apple-system,Segoe UI,Roboto,'Helvetica Neue',Arial;margin:16px}
-button{font-size:1rem;padding:6px;margin:4px}
-#map{width:100%;height:480px;border:1px solid #ddd;margin-top:12px}
-#results{margin-top:12px}
-#zkbKills{margin-top:12px;border:1px solid #ddd;padding:8px;height:220px;overflow:auto;background:#f9f9f9}
-.note{color:#555;font-size:0.9rem}
-.copyBtn{margin-left:6px;padding:2px 4px;font-size:0.8rem;cursor:pointer}
+body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial; margin:16px; }
+button { font-size: 1rem; padding:6px; margin:4px; }
+#map { width:100%; height:500px; border:1px solid #ddd; margin-top:12px; }
+#info { margin-top:12px; }
+.note { color:#555; font-size:0.9rem; }
 </style>
 </head>
 <body>
-<h2>EVE Online — Карта перемещений ВХ</h2>
-<p class="note">Карта перемещений персонажа через вормхолы. Последние киллмейлы берутся с ZKillboard.</p>
+<h2>EVE Online — Карта перемещений WH</h2>
+<p class="note">Сохраняйте свои перемещения через вормхолы, редактируйте маршрут, просматривайте структуры.</p>
 
 <div>
-<button id="authBtn">Авторизоваться через EVE Online</button>
-<button id="logoutBtn" style="display:none">Выйти</button>
+  <button id="authBtn">Авторизоваться через EVE Online</button>
+  <button id="logoutBtn" style="display:none">Выйти</button>
 </div>
+
 <div id="authInfo" class="note"></div>
+
 <div>
-<button id="buildMapBtn" style="display:none">Построить карту ВХ</button>
-<button id="savePathBtn" style="display:none">Сохранить путь</button>
-<button id="clearPathBtn" style="display:none">Очистить путь</button>
+  <button id="saveBtn" style="display:none">Сохранить текущую систему</button>
+  <button id="clearBtn" style="display:none">Очистить маршрут</button>
+  <button id="refreshBtn" style="display:none">Обновить карту</button>
 </div>
 
-<div id="status" class="note"></div>
 <div id="map"></div>
-<div id="results"></div>
-<div id="zkbKills"><strong>Последние киллмейлы (ZKB):</strong><br></div>
+<div id="info"></div>
 
 <script>
 const CLIENT_ID = '5a40c55151c241e3a007f2562fd4e1dd';
 const REDIRECT_URI = window.location.origin + window.location.pathname;
 const SCOPES = 'esi-location.read_location.v1';
-const RENDER_SERVER = 'https://eve-api.onrender.com';
+const SERVER = 'https://eve-api.onrender.com';
+
+let charData = null;
+let historyData = [];
+let network = null;
 
 const authBtn = document.getElementById('authBtn');
 const logoutBtn = document.getElementById('logoutBtn');
-const buildMapBtn = document.getElementById('buildMapBtn');
-const savePathBtn = document.getElementById('savePathBtn');
-const clearPathBtn = document.getElementById('clearPathBtn');
 const authInfo = document.getElementById('authInfo');
-const status = document.getElementById('status');
-const results = document.getElementById('results');
-const zkbKillsDiv = document.getElementById('zkbKills');
+const saveBtn = document.getElementById('saveBtn');
+const clearBtn = document.getElementById('clearBtn');
+const refreshBtn = document.getElementById('refreshBtn');
+const infoDiv = document.getElementById('info');
 const container = document.getElementById('map');
 
-let historyWH = [];
-let charData = null;
-
 function login(){
-    const state = Math.random().toString(36).substring(2);
-    const url = `https://login.eveonline.com/v2/oauth/authorize?response_type=code&redirect_uri=${encodeURIComponent(REDIRECT_URI)}&client_id=${CLIENT_ID}&scope=${encodeURIComponent(SCOPES)}&state=${state}`;
-    window.location.href = url;
+  const state = Math.random().toString(36).substring(2);
+  window.location.href = `https://login.eveonline.com/v2/oauth/authorize?response_type=code&redirect_uri=${encodeURIComponent(REDIRECT_URI)}&client_id=${CLIENT_ID}&scope=${encodeURIComponent(SCOPES)}&state=${state}`;
 }
 
-async function exchangeCodeForToken(code){
-    const r = await fetch(`${RENDER_SERVER}/exchange`, {
-        method: 'POST',
-        headers: {'Content-Type':'application/json; charset=utf-8'},
-        body: JSON.stringify({ code })
-    });
-    if(!r.ok) throw new Error('Ошибка обмена кода на токен');
-    return await r.json();
+async function exchangeCode(code){
+  const r = await fetch(`${SERVER}/exchange`, {
+    method:'POST',
+    headers:{'Content-Type':'application/json; charset=utf-8'},
+    body:JSON.stringify({code})
+  });
+  if(!r.ok) throw new Error('Ошибка обмена кода');
+  return await r.json();
 }
 
 async function getCharacterInfo(token){
-    const r = await fetch('https://esi.evetech.net/verify/',{
-        headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json; charset=utf-8'}
-    });
-    if(!r.ok) throw new Error('Ошибка проверки токена');
-    return await r.json();
+  const r = await fetch('https://esi.evetech.net/verify/', {
+    headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json; charset=utf-8'}
+  });
+  if(!r.ok) throw new Error('Ошибка проверки токена');
+  return await r.json();
 }
 
 function logout(){
-    localStorage.removeItem('eve_token');
-    localStorage.removeItem('eve_char');
-    authInfo.textContent = '';
-    authBtn.style.display = 'inline-block';
-    logoutBtn.style.display = 'none';
-    buildMapBtn.style.display = 'none';
-    savePathBtn.style.display = 'none';
-    clearPathBtn.style.display = 'none';
+  localStorage.removeItem('eve_token');
+  localStorage.removeItem('eve_char');
+  charData = null;
+  authInfo.textContent = '';
+  authBtn.style.display = 'inline-block';
+  logoutBtn.style.display = 'none';
+  saveBtn.style.display = 'none';
+  clearBtn.style.display = 'none';
+  refreshBtn.style.display = 'none';
 }
 
 async function handleAuth(){
-    const params = new URLSearchParams(window.location.search);
-    let token;
-
-    if(params.has('code')){
-        const code = params.get('code');
-        try{
-            const tokenData = await exchangeCodeForToken(code);
-            token = tokenData.access_token;
-            charData = await getCharacterInfo(token);
-            localStorage.setItem('eve_token', token);
-            localStorage.setItem('eve_char', JSON.stringify(charData));
-            showAuthInfo();
-            window.history.replaceState({}, document.title, window.location.pathname);
-        }catch(e){
-            console.error(e);
-            authInfo.textContent = 'Ошибка авторизации: '+e.message;
-        }
-    } else {
-        token = localStorage.getItem('eve_token');
-        const savedChar = localStorage.getItem('eve_char');
-        if(token && savedChar){
-            charData = JSON.parse(savedChar);
-            showAuthInfo();
-        }
+  const params = new URLSearchParams(window.location.search);
+  if(params.has('code')){
+    const code = params.get('code');
+    try{
+      const tokenData = await exchangeCode(code);
+      const token = tokenData.access_token;
+      charData = await getCharacterInfo(token);
+      localStorage.setItem('eve_token', token);
+      localStorage.setItem('eve_char', JSON.stringify(charData));
+      showAuth();
+      window.history.replaceState({}, document.title, window.location.pathname);
+    } catch(e){
+      console.error(e);
+      authInfo.textContent = 'Ошибка авторизации: '+e.message;
     }
+  } else {
+    const savedChar = localStorage.getItem('eve_char');
+    if(savedChar){
+      charData = JSON.parse(savedChar);
+      showAuth();
+    }
+  }
 }
 
-function showAuthInfo(){
-    authInfo.textContent = `Авторизован: ${charData.CharacterName} (ID: ${charData.CharacterID})`;
-    authBtn.style.display = 'none';
-    logoutBtn.style.display = 'inline-block';
-    buildMapBtn.style.display = 'inline-block';
-    savePathBtn.style.display = 'inline-block';
-    clearPathBtn.style.display = 'inline-block';
-    loadZKB();
+function showAuth(){
+  authInfo.textContent = `Авторизован: ${charData.CharacterName} (ID: ${charData.CharacterID})`;
+  authBtn.style.display = 'none';
+  logoutBtn.style.display = 'inline-block';
+  saveBtn.style.display = 'inline-block';
+  clearBtn.style.display = 'inline-block';
+  refreshBtn.style.display = 'inline-block';
+  loadHistory();
 }
 
-async function loadZKB(){
-    try{
-        const r = await fetch(`${RENDER_SERVER}/zkb/${charData.CharacterID}`);
-        const data = await r.json();
-        zkbKillsDiv.innerHTML = '<strong>Последние киллмейлы (ZKB):</strong><br>';
-        data.slice(0,10).forEach(kill => {
-            const link = `https://zkillboard.com/kill/${kill.killID}/`;
-            const btn = `<button class="copyBtn" onclick="navigator.clipboard.writeText('${link}')">Copy</button>`;
-            zkbKillsDiv.innerHTML += `Система ${kill.solarSystemName}: <a href="${link}" target="_blank">${kill.victim.shipTypeName}</a> ${btn}<br>`;
-        });
-    }catch(e){ console.error(e); }
-}
-
-async function getCurrentLocation(){
-    try{
-        const token = localStorage.getItem('eve_token');
-        const r = await fetch('https://esi.evetech.net/latest/characters/'+charData.CharacterID+'/location/', {
-            headers: {Authorization:`Bearer ${token}`}
-        });
-        if(!r.ok) throw new Error('Не удалось получить текущее местоположение');
-        const data = await r.json();
-        return data.solar_system_id || null;
-    }catch(e){ console.error(e); return null; }
+async function loadHistory(){
+  if(!charData) return;
+  const r = await fetch(`${SERVER}/history/${charData.CharacterID}`);
+  historyData = await r.json();
+  buildMap();
 }
 
 function buildMap(){
-    if(!historyWH.length) historyWH.push({systemID:0, systemName:'Start'});
-    const nodes = historyWH.map((h,i)=>({id:i,label:h.systemName}));
-    const edges = historyWH.map((h,i)=> i>0 ? {from:i-1,to:i} : null).filter(e=>e);
-    const data = {nodes, edges};
-    const options = {};
-    new vis.Network(container, data, options);
+  const nodes = historyData.map((h,i)=>({id:i,label:h.systemName, title:`Система: ${h.systemName}`}));
+  const edges = historyData.map((h,i)=>i>0?{from:i-1,to:i}:null).filter(e=>e);
+  const data = {nodes,edges};
+  const options = {physics:{enabled:true}, interaction:{hover:true, multiselect:true}};
+  if(network) network.destroy();
+  network = new vis.Network(container, data, options);
+  network.on('selectNode', params=>{
+    const node = historyData[params.nodes[0]];
+    infoDiv.textContent = `Система: ${node.systemName} | Время сохранения: ${node.timestamp}`;
+    // TODO: Можно добавить информацию о сооружениях через ESI
+  });
 }
 
-function savePath(){
-    fetch(`${RENDER_SERVER}/location`,{
-        method:'POST',
-        headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({characterID:charData.CharacterID, systemID:0, systemName:'System'})
-    }).then(r=>r.json()).then(console.log);
+async function saveCurrentSystem(){
+  if(!charData) return alert('Не авторизован');
+  const systemName = prompt('Введите название текущей системы:');
+  if(!systemName) return;
+  const systemID = Math.floor(Math.random()*100000); // можно заменить на реальный systemID из ESI
+  const r = await fetch(`${SERVER}/location`,{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({characterID:charData.CharacterID, systemID, systemName})
+  });
+  const data = await r.json();
+  console.log(data);
+  await loadHistory();
 }
 
-function clearPath(){
-    fetch(`${RENDER_SERVER}/history/${charData.CharacterID}`,{method:'DELETE'}).then(r=>r.json()).then(()=>{
-        historyWH=[];
-        buildMap();
-    });
+async function clearHistory(){
+  if(!charData) return alert('Не авторизован');
+  const r = await fetch(`${SERVER}/history/${charData.CharacterID}`, {method:'DELETE'});
+  await loadHistory();
 }
 
 authBtn.addEventListener('click', login);
 logoutBtn.addEventListener('click', logout);
-buildMapBtn.addEventListener('click', buildMap);
-savePathBtn.addEventListener('click', savePath);
-clearPathBtn.addEventListener('click', clearPath);
+saveBtn.addEventListener('click', saveCurrentSystem);
+clearBtn.addEventListener('click', clearHistory);
+refreshBtn.addEventListener('click', loadHistory);
 
 handleAuth();
 </script>
