@@ -144,7 +144,7 @@ async function fetchZKBBattles(characterID){
     }catch(e){ zkbKillsDiv.innerHTML += 'Ошибка ZKB: '+e.message; }
 }
 
-// Получаем текущее местоположение через сервер Render
+// Получаем текущую систему через сервер
 async function getCurrentSystem(charID){
     try{
         const r = await fetch(`${RENDER_SERVER}/location?characterID=${charID}`);
@@ -163,7 +163,7 @@ async function saveCurrentSystem(characterID, system){
             body: JSON.stringify({
                 characterID,
                 systemID: system.system_id,
-                systemName: system.name
+                systemName: system.system_name
             })
         });
     } catch(e){ console.error('Ошибка сохранения системы:', e); }
@@ -175,7 +175,7 @@ async function getWHHistory(characterID){
         const r = await fetch(`${RENDER_SERVER}/history/${characterID}`);
         if(!r.ok) return [];
         const data = await r.json();
-        return data.filter(s => isWormholeSystem(s.name));
+        return data.filter(s => isWormholeSystem(s.system_name));
     }catch(e){
         console.error('Ошибка получения истории:', e);
         return [];
@@ -195,44 +195,38 @@ buildMapBtn.addEventListener('click', async ()=>{
     try{
         status.textContent = 'Получаем историю ВХ и текущее местоположение...';
 
-        // История с сервера
         const history = await getWHHistory(charID);
 
-        // Текущая система
         let current = await getCurrentSystem(charID);
         if(!current && history.length>0){
-            current = history[history.length-1]; // fallback на последнюю систему
+            current = history[history.length-1]; // fallback
         }
         if(!current){
             status.textContent='Не удалось получить текущее местоположение';
             return;
         }
 
-        // Сохраняем текущее положение
         await saveCurrentSystem(charID, current);
 
-        // Формируем историю для карты
         if(isWormholeSystem(current.system_name)){
-            historyWH.push({id: current.system_id, name: current.system_name});
+            historyWH.push({id: current.system_id, system_name: current.system_name});
         }
         history.forEach(s=> historyWH.push(s));
 
-        // Строим граф
         const nodes = [];
         const edges = [];
         nodes.push(charName);
         let lastNode = 0;
         historyWH.forEach(s=>{
-            nodes.push(s.name);
+            nodes.push(s.system_name);
             edges.push({from:lastNode,to:nodes.length-1});
             lastNode = nodes.length-1;
         });
         drawNetwork(nodes, edges);
 
-        // История перемещений
         const html = [];
         html.push('<h3>История перемещений ВХ:</h3><ul>');
-        historyWH.forEach(s=> html.push(`<li>${s.name}</li>`));
+        historyWH.forEach(s=> html.push(`<li>${s.system_name}</li>`));
         html.push('</ul>');
         results.innerHTML = html.join('');
 
