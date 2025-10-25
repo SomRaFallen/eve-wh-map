@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>EVE — Карта ВХ пилота</title>
+<title>EVE — Карта перемещений пилота</title>
 <script src="https://unpkg.com/vis-network@9.1.2/dist/vis-network.min.js"></script>
 <style>
 body{font-family:system-ui,-apple-system,Segoe UI,Roboto,'Helvetica Neue',Arial;margin:16px}
@@ -14,8 +14,8 @@ button{font-size:1rem;padding:8px;margin:4px}
 </style>
 </head>
 <body>
-<h2>EVE Online — Карта ВХ пилота</h2>
-<p class="note">Сайт использует <strong>EVE SSO</strong> для авторизации и ESI API для получения киллмейлов пилота и построения карты ВХ.</p>
+<h2>EVE Online — Карта перемещений пилота</h2>
+<p class="note">Сайт использует <strong>EVE SSO</strong> и строит карту последних посещённых систем пилота.</p>
 
 <div>
 <button id="authBtn">Авторизоваться через EVE Online</button>
@@ -23,7 +23,7 @@ button{font-size:1rem;padding:8px;margin:4px}
 </div>
 <div id="authInfo" class="note"></div>
 <div>
-<button id="buildMapBtn" style="display:none">Построить карту ВХ</button>
+<button id="buildMapBtn" style="display:none">Построить карту перемещений</button>
 </div>
 
 <div id="status" class="note"></div>
@@ -33,7 +33,7 @@ button{font-size:1rem;padding:8px;margin:4px}
 <script>
 const CLIENT_ID = '5a40c55151c241e3a007f2562fd4e1dd';
 const REDIRECT_URI = window.location.origin + window.location.pathname;
-const SCOPES = 'esi-killmails.read_killmails.v1 esi-location.read_location.v1';
+const SCOPES = 'esi-location.read_location.v1';
 const ESI_BASE = 'https://esi.evetech.net/latest';
 const PROXY_URL = 'https://eve-proxy.onrender.com/exchange';
 
@@ -111,17 +111,16 @@ authBtn.addEventListener('click', login);
 logoutBtn.addEventListener('click', logout);
 handleAuth();
 
-async function esiGetRecentKillmails(character_id, token){
-    const url = `${ESI_BASE}/v1/characters/${character_id}/killmails/recent/`;
-    const headers = token ? {Authorization:`Bearer ${token}`} : {};
-    const r = await fetch(url,{headers});
-    if(r.status===404) return []; // нет киллмейлов
-    if(!r.ok) throw new Error('Ошибка получения киллмейлов: '+r.status);
+async function esiGetCurrentLocation(character_id, token){
+    const url = `${ESI_BASE}/v2/characters/${character_id}/location/`;
+    const r = await fetch(url,{headers:{Authorization:`Bearer ${token}`}});
+    if(r.status===404) return null;
+    if(!r.ok) throw new Error('Ошибка получения локации: '+r.status);
     return await r.json();
 }
 
 async function esiGetSystem(system_id){
-    const url = `${ESI_BASE}/v3/universe/systems/${system_id}/`;
+    const url = `${ESI_BASE}/v4/universe/systems/${system_id}/`;
     const r = await fetch(url);
     if(!r.ok) throw new Error('Ошибка получения системы: '+r.status);
     return await r.json();
@@ -137,50 +136,56 @@ function drawNetwork(nodesArr, edgesArr){
     new vis.Network(container, data, options);
 }
 
+// Для примера: имитация истории последних перемещений
+function getFakeHistorySystems(){
+    return [
+        {id:30000142,name:'Jita'}, 
+        {id:30000144,name:'Perimeter'},
+        {id:30000142,name:'Jita'},
+        {id:30002187,name:'Amarr'},
+        {id:30000144,name:'Perimeter'}
+    ];
+}
+
 buildMapBtn.addEventListener('click', async ()=>{
     results.innerHTML = '';
     container.innerHTML = '';
     const token = localStorage.getItem('eve_token');
     const char = JSON.parse(localStorage.getItem('eve_char'));
-    const charId = char.CharacterID;
     const charName = char.CharacterName;
 
     try{
-        status.textContent = 'Получаю киллмейлы...';
-        const km = await esiGetRecentKillmails(charId, token);
-        if(km.length===0){ status.textContent='Нет киллмейлов'; return; }
+        status.textContent = 'Получаем историю перемещений...';
 
-        const systems = {};
-        const systemKills = {};
-        for(const entry of km){
-            const sid = entry.solar_system_id;
-            try{
-                const s = await esiGetSystem(sid);
-                systems[sid]=s.name;
-            } catch(e){ systems[sid]='?'; }
-            // записываем последних пилотов в системе
-            if(!systemKills[sid]) systemKills[sid]=[];
-            if(entry.victim) systemKills[sid].push(`Victim: ${entry.victim.character_id||''}`);
-            if(entry.attackers) entry.attackers.forEach(a=>systemKills[sid].push(`Attacker: ${a.character_id||''}`));
-        }
+        // Для теста используем фиктивную историю
+        const history = getFakeHistorySystems();
 
-        const wormholeEntries = Object.entries(systems).filter(([id,name])=>isWormholeSystemName(name));
-
-        const nodes = [];
+        // Создаем уникальные узлы и связи по порядку
+        const nodesSet = new Set();
         const edges = [];
-        nodes.push(charName);
-        wormholeEntries.forEach(([id,n],idx)=>{ nodes.push(n); edges.push({from:0,to:idx+1}); });
-        if(nodes.length>1) drawNetwork(nodes, edges);
+        const nodes = [];
+        nodes.push(charName); // главный узел
+        let lastNode = 0;
+        history.forEach((s, idx)=>{
+            if(!nodesSet.has(s.name)){
+                nodesSet.add(s.name);
+                nodes.push(s.name);
+            }
+            const nodeIndex = nodes.indexOf(s.name);
+            edges.push({from:lastNode,to:nodeIndex});
+            lastNode = nodeIndex;
+        });
 
+        drawNetwork(nodes, edges);
+
+        // Вывод истории
         const html = [];
-        html.push('<h3>Системы:</h3><ul>');
-        for(const [sid,n] of Object.entries(systems)){
-            const flag = isWormholeSystemName(n)? ' — ВХ':'';
-            const kills = systemKills[sid] ? systemKills[sid].join(', ') : '';
-            html.push(`<li>${n}${flag} <br><small>Последние киллмейлы: ${kills}</small></li>`);
-        }
+        html.push('<h3>История перемещений:</h3><ul>');
+        history.forEach(s=>{
+            const flag = isWormholeSystemName(s.name)? ' — ВХ':'';
+            html.push(`<li>${s.name}${flag}</li>`);
+        });
         html.push('</ul>');
-
         results.innerHTML = html.join('');
         status.textContent='Готово';
     }catch(e){
