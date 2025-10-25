@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>EVE — Карта перемещений ВХ с маршрутом</title>
+<title>EVE WH Map</title>
 <script src="https://unpkg.com/vis-network@9.1.2/dist/vis-network.min.js"></script>
 <style>
 body{font-family:system-ui,-apple-system,Segoe UI,Roboto,'Helvetica Neue',Arial;margin:16px}
@@ -16,8 +16,8 @@ button{font-size:1rem;padding:6px;margin:4px}
 </style>
 </head>
 <body>
-<h2>EVE Online — Карта перемещений ВХ с маршрутом</h2>
-<p class="note">Карта перемещений персонажа через вормхолы. Последние киллмейлы берутся с ZKillboard, ссылки можно копировать.</p>
+<h2>EVE Online — Карта перемещений ВХ</h2>
+<p class="note">Карта перемещений персонажа через вормхолы. Последние киллмейлы берутся с ZKillboard.</p>
 
 <div>
 <button id="authBtn">Авторизоваться через EVE Online</button>
@@ -39,8 +39,8 @@ button{font-size:1rem;padding:6px;margin:4px}
 const CLIENT_ID = '5a40c55151c241e3a007f2562fd4e1dd';
 const REDIRECT_URI = window.location.origin + window.location.pathname;
 const SCOPES = 'esi-location.read_location.v1';
-const PROXY_URL = 'https://eve-proxy.onrender.com/exchange';
-const RENDER_SERVER = 'https://eve-proxy.onrender.com';
+const PROXY_URL = '/exchange';
+const RENDER_SERVER = '';
 
 const authBtn = document.getElementById('authBtn');
 const logoutBtn = document.getElementById('logoutBtn');
@@ -90,25 +90,6 @@ function logout(){
     clearPathBtn.style.display = 'none';
 }
 
-async function getRealCurrentSystem(token, charID){
-    try{
-        const r = await fetch(`https://esi.evetech.net/latest/characters/${charID}/location/`,{
-            headers: { Authorization: `Bearer ${token}`, 'Content-Type':'application/json; charset=utf-8' }
-        });
-        if(!r.ok) throw new Error('Не удалось получить текущее местоположение через ESI');
-        const data = await r.json();
-        const rName = await fetch(`https://esi.evetech.net/latest/universe/systems/${data.solar_system_id}/`,{
-            headers:{'Content-Type':'application/json; charset=utf-8'}
-        });
-        if(!rName.ok) throw new Error('Не удалось получить имя системы');
-        const systemData = await rName.json();
-        return { system_id: data.solar_system_id, system_name: systemData.name };
-    }catch(e){
-        console.error(e);
-        return null;
-    }
-}
-
 async function handleAuth(){
     const params = new URLSearchParams(window.location.search);
     let char, token;
@@ -128,22 +109,7 @@ async function handleAuth(){
             buildMapBtn.style.display = 'inline-block';
             savePathBtn.style.display = 'inline-block';
             clearPathBtn.style.display = 'inline-block';
-
-            const realSystem = await getRealCurrentSystem(token, char.CharacterID);
-            if(realSystem){
-                await fetch(`${RENDER_SERVER}/location`, {
-                    method:'POST',
-                    headers:{ 'Content-Type':'application/json; charset=utf-8' },
-                    body: JSON.stringify({
-                        characterID: char.CharacterID,
-                        systemID: realSystem.system_id,
-                        systemName: realSystem.system_name
-                    })
-                });
-            }
-
             window.history.replaceState({}, document.title, window.location.pathname);
-
         }catch(e){
             console.error(e);
             authInfo.textContent = 'Ошибка авторизации: '+e.message;
@@ -166,8 +132,6 @@ async function handleAuth(){
 authBtn.addEventListener('click', login);
 logoutBtn.addEventListener('click', logout);
 handleAuth();
-
-// Остальной код карты, ZKB, история и очистка пути остаются прежними, только все fetch добавлен charset=utf-8
 </script>
 </body>
 </html>
