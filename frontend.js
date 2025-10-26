@@ -1,5 +1,5 @@
 // frontend.js
-const backendUrl = 'https://eve-proxy.onrender.com'; // URL сервера на Render
+const backendUrl = 'https://eve-proxy.onrender.com'; // URL сервера Render
 const clientId = '5a40c55151c241e3a007f2562fd4e1dd';
 const redirectUri = 'https://somrafallen.github.io/eve-wh-map/';
 
@@ -28,7 +28,6 @@ async function handleAuth() {
   if (!code) return;
 
   try {
-    // Обмен кода на токен и данные персонажа
     const resp = await fetch(`${backendUrl}/exchange`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -36,12 +35,16 @@ async function handleAuth() {
     });
     const data = await resp.json();
 
+    if (data.error) {
+      characterInfo.innerText = `Error: ${data.error_description || data.error}`;
+      return;
+    }
+
     characterInfo.innerHTML = `
       <h2>${data.character.CharacterName}</h2>
       <p>System ID: ${data.character.SystemID}</p>
     `;
 
-    // Показ последних киллов
     const killsResp = await fetch(`${backendUrl}/zkbKills?characterId=${data.character.CharacterID}`);
     const killsData = await killsResp.json();
     killsDiv.innerHTML = '<h3>Last 10 Kills:</h3>' + killsData.map(k => `
