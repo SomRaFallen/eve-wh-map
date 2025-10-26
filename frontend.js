@@ -24,10 +24,13 @@ let selectedSystem = null;
 
 function logDebug(msg){ debugDiv.textContent += msg+'\n'; }
 
-// Resize canvas
+// --- Resize canvas ---
 function resizeCanvas(){
-  canvas.width = stepsContainer.scrollWidth;
-  canvas.height = stepsContainer.scrollHeight;
+  const rect = stepsContainer.getBoundingClientRect();
+  canvas.width = rect.width;
+  canvas.height = rect.height;
+  canvas.style.left = rect.left + window.scrollX + 'px';
+  canvas.style.top = rect.top + window.scrollY + 'px';
 }
 window.addEventListener('resize', resizeCanvas);
 
@@ -55,7 +58,6 @@ function renderSteps(){
   stepsContainer.innerHTML='';
   selectedStep = null;
   selectedSystem = null;
-  resizeCanvas();
 
   currentRoute.steps.forEach((step,i)=>{
     const stepDiv = document.createElement('div');
@@ -90,9 +92,7 @@ function renderSteps(){
         const data = JSON.parse(e.dataTransfer.getData('text/plain'));
         const draggedSys = currentRoute.steps[data.stepIndex].systems[data.sysIndex];
         const targetIndex = step.systems.indexOf(sys);
-        // Remove from old
         currentRoute.steps[data.stepIndex].systems.splice(data.sysIndex,1);
-        // Insert at target
         step.systems.splice(targetIndex,0,draggedSys);
         renderSteps();
         saveRoute();
@@ -104,7 +104,10 @@ function renderSteps(){
     stepsContainer.appendChild(stepDiv);
   });
 
-  drawConnections();
+  setTimeout(()=>{
+    resizeCanvas();
+    drawConnections();
+  },0);
 }
 
 // --- Format system text ---
