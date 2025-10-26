@@ -4,9 +4,11 @@ input,button,select { padding:6px; margin:5px; border-radius:5px; cursor:pointer
 #systemInfoContainer { background:#222; padding:10px; border-radius:8px; margin-top:20px; }
 #systemInfoContainer input, #systemInfoContainer select { width:120px; margin-right:10px; }
 #stepsContainer { margin-top:20px; display:flex; gap:40px; align-items:flex-start; position:relative; }
-.stepBox { background:#333; padding:10px; border-radius:8px; min-width:120px; display:flex; flex-direction:column; gap:10px; position:relative; z-index:1; }
-.stepBox h3 { margin:0 0 10px 0; color:#ffcc00; text-align:center; }
-.systemBox { background:#444; padding:10px; border-radius:6px; cursor:grab; text-align:center; position:relative; z-index:2; }
+.stepBox { display:flex; flex-direction:column; gap:10px; }
+.systemBox {
+  width:50px; height:50px; border-radius:50%; background:#444; display:flex;
+  align-items:center; justify-content:center; cursor:grab; color:#fff;
+}
 .systemBox.selected { background:#00ccff; color:#000; }
 #connectionsCanvas { position:absolute; top:0; left:0; pointer-events:none; z-index:0; }
 #debug { background:#222; padding:10px; border-radius:5px; white-space:pre-wrap; color:#0f0; margin-top:20px; }
