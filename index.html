@@ -9,22 +9,21 @@
   <h1>EVE WH Map</h1>
   <button id="loginBtn">Login with EVE Online</button>
 
-  <input type="text" id="searchInput" placeholder="Search character">
-  <button id="searchBtn">Search</button>
+  <h2>Search zKillboard</h2>
+  <input type="text" id="zkbInput" placeholder="Character name or ID">
+  <button id="zkbSearchBtn">Search</button>
+  <div id="zkbContainer"></div>
+
+  <h2>Character Map</h2>
   <select id="characterSelect"></select>
 
-  <h2>Character Info</h2>
-  <div id="characterInfo"></div>
-
-  <h2>Last 10 Kills</h2>
-  <div id="kills"></div>
-
-  <h2>Wormhole Map</h2>
   <div>
     <button id="addNodeBtn">Add Node</button>
     <button id="addEdgeBtn">Add Edge</button>
     <button id="deleteNodeBtn">Delete Node</button>
+    <button id="deleteEdgeBtn">Delete Edge</button>
   </div>
+
   <div id="map"></div>
 
   <h2>Debug</h2>
