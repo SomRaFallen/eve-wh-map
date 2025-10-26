@@ -12,6 +12,7 @@ const debugDiv = document.getElementById('debug');
 const addNodeBtn = document.getElementById('addNodeBtn');
 const addEdgeBtn = document.getElementById('addEdgeBtn');
 const deleteNodeBtn = document.getElementById('deleteNodeBtn');
+const deleteEdgeBtn = document.getElementById('deleteEdgeBtn');
 
 let accessToken = null;
 let currentCharacterId = null;
@@ -20,36 +21,16 @@ let mode = null;
 let selectedNodeForEdge = null;
 
 function logDebug(msg){
-  console.log(msg);
   debugDiv.textContent += msg + '\n';
 }
 
-// --- OAuth login ---
-loginBtn.addEventListener('click', ()=>{
-  const url = `https://login.eveonline.com/v2/oauth/authorize/?response_type=code&redirect_uri=${encodeURIComponent(location.origin)}&client_id=${process.env.CLIENT_ID}&scope=publicData esi-location.read_location.v1&state=map`;
-  window.location.href = url;
-});
+// --- Режимы ---
+addNodeBtn.addEventListener('click', ()=>{ mode="addNode"; });
+addEdgeBtn.addEventListener('click', ()=>{ mode="addEdge"; selectedNodeForEdge=null; });
+deleteNodeBtn.addEventListener('click', ()=>{ mode="deleteNode"; });
+deleteEdgeBtn.addEventListener('click', ()=>{ mode="deleteEdge"; });
 
-// --- получить код из URL ---
-const params = new URLSearchParams(window.location.search);
-const code = params.get('code');
-if(code){
-  fetch(`${backendUrl}/exchange`,{
-    method:'POST',
-    headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({ code })
-  })
-  .then(r=>r.json())
-  .then(data=>{
-    if(data.access_token){
-      accessToken = data.access_token;
-      currentCharacterId = data.character.CharacterID;
-      loadCharacterData();
-    } else logDebug('Auth error');
-  });
-}
-
-// --- поиск персонажей ---
+// --- Поиск персонажей ---
 searchBtn.addEventListener('click', async ()=>{
   const query = searchInput.value.trim();
   if(!query) return;
@@ -64,13 +45,25 @@ searchBtn.addEventListener('click', async ()=>{
   });
 });
 
-// --- выбор персонажа ---
+// --- Выбор персонажа ---
 characterSelect.addEventListener('change', ()=>{
   currentCharacterId = characterSelect.value;
   loadCharacterData();
 });
 
-// --- загрузка данных персонажа ---
+// --- Клик по карте (для добавления узлов) ---
+mapDiv.addEventListener('click', e=>{
+  if(mode!=="addNode") return;
+  const rect = mapDiv.getBoundingClientRect();
+  const x = e.clientX - rect.left;
+  const y = e.clientY - rect.top;
+  const newId = 'J' + Math.floor(Math.random()*1000000);
+  currentRoute.nodes.push({ id:newId, x, y });
+  drawMap(currentRoute);
+  saveRoute();
+});
+
+// --- Загрузка данных персонажа ---
 async function loadCharacterData(){
   if(!currentCharacterId) return;
   characterInfo.textContent = 'Loading...';
@@ -92,24 +85,7 @@ async function loadCharacterData(){
   }catch(e){ logDebug(`Error loading route: ${e}`); }
 }
 
-// --- режимы ---
-addNodeBtn.addEventListener('click', ()=>{ mode="addNode"; });
-addEdgeBtn.addEventListener('click', ()=>{ mode="addEdge"; selectedNodeForEdge=null; });
-deleteNodeBtn.addEventListener('click', ()=>{ mode="deleteNode"; });
-
-// --- клик по карте ---
-mapDiv.addEventListener('click', e=>{
-  if(mode!=="addNode") return;
-  const rect = mapDiv.getBoundingClientRect();
-  const x = e.clientX - rect.left;
-  const y = e.clientY - rect.top;
-  const newId = 'J' + Math.floor(Math.random()*1000000);
-  currentRoute.nodes.push({ id:newId, x, y });
-  drawMap(currentRoute);
-  saveRoute();
-});
-
-// --- рисование карты ---
+// --- Рисование карты ---
 function drawMap(route){
   mapDiv.innerHTML = '';
   const svgNS = "http://www.w3.org/2000/svg";
@@ -121,22 +97,38 @@ function drawMap(route){
   const nodeMap = {};
   route.nodes.forEach(n=>nodeMap[n.id]=n);
 
+  // --- Линии ---
   route.edges.forEach(e=>{
     const from = nodeMap[e.from], to = nodeMap[e.to];
     if(!from || !to) return;
     const line = document.createElementNS(svgNS,"line");
     line.setAttribute("x1",from.x); line.setAttribute("y1",from.y);
     line.setAttribute("x2",to.x); line.setAttribute("y2",to.y);
-    line.setAttribute("stroke","#ffcc00"); line.setAttribute("stroke-width","2");
+    line.setAttribute("stroke","#ffcc00");
+    line.setAttribute("stroke-width","2");
+    line.style.cursor = "pointer";
+
+    // --- удаление конкретной линии ---
+    line.addEventListener('click', evt=>{
+      evt.stopPropagation();
+      if(mode==="deleteEdge"){
+        currentRoute.edges = currentRoute.edges.filter(edge=>edge!==e);
+        drawMap(currentRoute);
+        saveRoute();
+      }
+    });
+
     svg.appendChild(line);
   });
 
+  // --- Узлы ---
   route.nodes.forEach(n=>{
     const circle = document.createElementNS(svgNS,"circle");
     circle.setAttribute("cx",n.x); circle.setAttribute("cy",n.y); circle.setAttribute("r",10);
     circle.setAttribute("fill","#00ccff");
     circle.setAttribute("cursor","pointer");
 
+    // --- Перетаскивание ---
     circle.addEventListener('mousedown', e=>{
       e.stopPropagation();
       const onMove = evt=>{
@@ -152,6 +144,7 @@ function drawMap(route){
       document.addEventListener('mouseup',onUp);
     });
 
+    // --- Клик по узлу ---
     circle.addEventListener('click', e=>{
       e.stopPropagation();
       if(mode==="deleteNode"){
@@ -182,7 +175,7 @@ function drawMap(route){
   mapDiv.appendChild(svg);
 }
 
-// --- сохранение маршрута ---
+// --- Сохранение маршрута ---
 async function saveRoute(){
   if(!currentCharacterId) return;
   try{
@@ -193,4 +186,23 @@ async function saveRoute(){
     });
     logDebug('Route saved');
   }catch(e){ logDebug(`Error saving route: ${e}`); }
+}
+
+// --- Инициализация (если уже есть code в URL, обмен на токен) ---
+const params = new URLSearchParams(window.location.search);
+const code = params.get('code');
+if(code){
+  fetch(`${backendUrl}/exchange`,{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ code })
+  })
+  .then(r=>r.json())
+  .then(data=>{
+    if(data.access_token){
+      accessToken = data.access_token;
+      currentCharacterId = data.character.CharacterID;
+      loadCharacterData();
+    } else logDebug('Auth error');
+  });
 }
