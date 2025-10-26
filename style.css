@@ -25,3 +25,7 @@ button {
 button:hover {
   background: #333;
 }
+
+#characterInfo, #kills {
+  margin-top: 20px;
+}
