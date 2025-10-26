@@ -7,11 +7,17 @@ const loginBtn = document.getElementById('loginBtn');
 const characterInfo = document.getElementById('characterInfo');
 const killsDiv = document.getElementById('kills');
 
+// Генерация случайной строки для state
+function generateState() {
+  return Math.random().toString(36).substring(2, 15);
+}
+
 // OAuth login
 loginBtn.addEventListener('click', () => {
+  const state = generateState();
   const authUrl = `https://login.eveonline.com/v2/oauth/authorize/?response_type=code&redirect_uri=${encodeURIComponent(
     redirectUri
-  )}&client_id=${clientId}&scope=publicData`;
+  )}&client_id=${clientId}&scope=publicData&state=${state}`;
   window.location.href = authUrl;
 });
 
