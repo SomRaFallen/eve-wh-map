@@ -1,24 +1,16 @@
 const backendUrl = 'https://eve-proxy.onrender.com';
 const clientId = '5a40c55151c241e3a007f2562fd4e1dd';
 const redirectUri = 'https://somrafallen.github.io/eve-wh-map/';
+const scopes = 'publicData esi-location.read_location.v1'; // минимальный набор
 
 const loginBtn = document.getElementById('loginBtn');
 const characterInfo = document.getElementById('characterInfo');
 const killsDiv = document.getElementById('kills');
+const debugDiv = document.getElementById('debug');
 
-// Добавляем мини-лог на страницу
-const logDiv = document.createElement('pre');
-logDiv.style.textAlign = 'left';
-logDiv.style.marginTop = '20px';
-logDiv.style.padding = '10px';
-logDiv.style.background = '#111';
-logDiv.style.border = '1px solid #555';
-logDiv.style.overflowX = 'auto';
-document.body.appendChild(logDiv);
-
-function log(message) {
-  console.log(message);
-  logDiv.textContent += message + '\n';
+function logDebug(msg) {
+  console.log(msg);
+  debugDiv.textContent += msg + '\n';
 }
 
 function generateState() {
@@ -27,16 +19,31 @@ function generateState() {
 
 loginBtn.addEventListener('click', () => {
   const state = generateState();
-  const authUrl = `https://login.eveonline.com/v2/oauth/authorize/?response_type=code&redirect_uri=${encodeURIComponent(
-    redirectUri
-  )}&client_id=${clientId}&scope=publicData&state=${state}`;
+  localStorage.setItem('oauthState', state);
+
+  const authUrl = `https://login.eveonline.com/v2/oauth/authorize/` +
+    `?response_type=code&redirect_uri=${encodeURIComponent(redirectUri)}` +
+    `&client_id=${clientId}&scope=${encodeURIComponent(scopes)}&state=${state}`;
+
   window.location.href = authUrl;
 });
 
 async function handleAuth() {
   const urlParams = new URLSearchParams(window.location.search);
   const code = urlParams.get('code');
+  const state = urlParams.get('state');
+
   if (!code) return;
+
+  // Проверка state
+  const savedState = localStorage.getItem('oauthState');
+  if (savedState !== state) {
+    logDebug('❌ State mismatch! Potential CSRF attack.');
+    return;
+  }
+
+  logDebug(`Code: ${code}`);
+  logDebug(`State: ${state}`);
 
   try {
     const resp = await fetch(`${backendUrl}/exchange`, {
@@ -45,16 +52,13 @@ async function handleAuth() {
       body: JSON.stringify({ code }),
     });
 
-    log(`HTTP status: ${resp.status}`);
-
-    let text = await resp.text();
-    log('Raw response from server:\n' + text);
+    logDebug(`HTTP status: ${resp.status}`);
+    const text = await resp.text();
+    logDebug(`Raw response:\n${text}`);
 
     let data;
-    try {
-      data = JSON.parse(text);
-    } catch {
-      characterInfo.innerText = '❌ Server returned non-JSON response. See log below.';
+    try { data = JSON.parse(text); } catch {
+      characterInfo.innerText = '❌ Server returned non-JSON response. See debug log.';
       return;
     }
 
@@ -64,19 +68,18 @@ async function handleAuth() {
     }
 
     characterInfo.innerHTML = `
-      <h2>${data.character.CharacterName}</h2>
-      <p>System ID: ${data.character.SystemID}</p>
+      <h3>${data.character.CharacterName}</h3>
+      <p>System ID: ${data.character.SystemID || 'Unknown'}</p>
     `;
 
     const killsResp = await fetch(`${backendUrl}/zkbKills?characterId=${data.character.CharacterID}`);
     const killsData = await killsResp.json();
-    killsDiv.innerHTML = '<h3>Last 10 Kills:</h3>' + killsData.map(k => `
-      <p>${k.date}: ${k.ship} in ${k.solarSystem}</p>
-    `).join('');
+    killsDiv.innerHTML = '<h4>Last 10 Kills:</h4>' +
+      killsData.map(k => `<p>${k.date}: ${k.ship} in ${k.solarSystem}</p>`).join('');
 
   } catch (e) {
     characterInfo.innerText = '❌ Error fetching character info';
-    log('Exception:\n' + e);
+    logDebug(`Exception: ${e}`);
   }
 }
 
