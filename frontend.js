@@ -7,13 +7,41 @@ const characterInfo = document.getElementById('characterInfo');
 const killsDiv = document.getElementById('kills');
 const mapDiv = document.getElementById('map');
 const debugDiv = document.getElementById('debug');
+const loginBtn = document.getElementById('loginBtn');
 
 let currentCharacterId = null;
 let currentRoute = { nodes:[], edges:[] };
+let accessToken = null;
 
 function logDebug(msg){
   console.log(msg);
   debugDiv.textContent += msg + '\n';
+}
+
+// --- OAuth login ---
+loginBtn.addEventListener('click', ()=>{
+  const url = `https://login.eveonline.com/v2/oauth/authorize/?response_type=code&redirect_uri=${encodeURIComponent(location.origin)}&client_id=${process.env.CLIENT_ID}&scope=publicData esi-location.read_location.v1&state=map`;
+  window.location.href = url;
+});
+
+// --- получить код из URL после редиректа ---
+const params = new URLSearchParams(window.location.search);
+const code = params.get('code');
+const state = params.get('state');
+if(code){
+  fetch(`${backendUrl}/exchange`,{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ code })
+  })
+  .then(r=>r.json())
+  .then(data=>{
+    if(data.access_token){
+      accessToken = data.access_token;
+      currentCharacterId = data.character.CharacterID;
+      loadCharacterData();
+    }else logDebug('Auth error');
+  });
 }
 
 // --- поиск персонажей ---
@@ -44,7 +72,7 @@ async function loadCharacterData(){
   killsDiv.textContent = '';
   mapDiv.innerHTML = '';
 
-  // загружаем киллы
+  // киллы
   try{
     const killsResp = await fetch(`${backendUrl}/zkbKills?characterId=${currentCharacterId}`);
     const killsData = await killsResp.json();
@@ -53,7 +81,7 @@ async function loadCharacterData(){
       killsData.map(k=>`<p>${k.date}: ${k.ship} in ${k.solarSystem}</p>`).join('');
   }catch(e){ logDebug(`Error fetching kills: ${e}`); }
 
-  // загружаем маршрут
+  // маршрут
   try{
     const routeResp = await fetch(`${backendUrl}/route/${currentCharacterId}`);
     currentRoute = await routeResp.json();
@@ -61,11 +89,11 @@ async function loadCharacterData(){
   }catch(e){ logDebug(`Error loading route: ${e}`); }
 }
 
-// --- функция рисования карты ---
+// --- функция рисования карты с возможностью редактирования ---
 function drawMap(route){
   mapDiv.innerHTML = '';
   const svgNS = "http://www.w3.org/2000/svg";
-  const svg = document.createElementNS(svgNS, "svg");
+  const svg = document.createElementNS(svgNS,"svg");
   svg.setAttribute("width","100%");
   svg.setAttribute("height","400px");
   svg.setAttribute("style","background:#111");
@@ -78,8 +106,8 @@ function drawMap(route){
     const from = nodeMap[e.from], to = nodeMap[e.to];
     if(!from || !to) return;
     const line = document.createElementNS(svgNS,"line");
-    line.setAttribute("x1", from.x); line.setAttribute("y1", from.y);
-    line.setAttribute("x2", to.x); line.setAttribute("y2", to.y);
+    line.setAttribute("x1",from.x); line.setAttribute("y1",from.y);
+    line.setAttribute("x2",to.x); line.setAttribute("y2",to.y);
     line.setAttribute("stroke","#ffcc00"); line.setAttribute("stroke-width","2");
     svg.appendChild(line);
   });
@@ -104,7 +132,7 @@ function drawMap(route){
 
     // подпись
     const text = document.createElementNS(svgNS,"text");
-    text.setAttribute("x", n.x + 12); text.setAttribute("y", n.y + 4);
+    text.setAttribute("x",n.x+12); text.setAttribute("y",n.y+4);
     text.setAttribute("fill","#fff"); text.setAttribute("font-size","12");
     text.textContent = n.id;
 
@@ -127,18 +155,3 @@ async function saveRoute(){
     logDebug('Route saved');
   }catch(e){ logDebug(`Error saving route: ${e}`); }
 }
-
-// --- тестовый стартовый маршрут ---
-currentRoute = {
-  nodes: [
-    { id: 'J100001', x:100, y:100 },
-    { id: 'J100002', x:300, y:100 },
-    { id: 'J100003', x:200, y:250 }
-  ],
-  edges: [
-    { from:'J100001', to:'J100002' },
-    { from:'J100002', to:'J100003' },
-    { from:'J100003', to:'J100001' }
-  ]
-};
-drawMap(currentRoute);
