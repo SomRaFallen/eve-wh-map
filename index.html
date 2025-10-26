@@ -1,13 +1,43 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<title>EVE WH Map</title>
+<style>
+  body { font-family: sans-serif; margin:0; overflow:hidden; }
+  #map { width:100vw; height:100vh; background:#111; position:relative; }
+  .system {
+    width: 120px; height: 50px; border-radius: 8px;
+    background:#222; color:#fff; text-align:center;
+    line-height:50px; position:absolute; cursor:pointer;
+    user-select:none; border:2px solid #555;
+  }
+  .system.home { border-color: gold; }
+  .buttons { position:absolute; top:10px; left:10px; z-index:1000; }
+  .buttons button { margin:3px; padding:5px 10px; }
+  svg { position:absolute; top:0; left:0; width:100%; height:100%; pointer-events:none; }
+</style>
+</head>
+<body>
+<div class="buttons">
+  <button onclick="addSystem()">Добавить систему</button>
+  <button onclick="clearAll()">Очистить карту</button>
+</div>
+<svg id="connections"></svg>
+<div id="map"></div>
+
 <script>
 const API = 'https://eve-proxy.onrender.com';
+let systems = [];
+let selected = null;
 
-// Получаем все системы с сервера
-async function fetchSystems(){
-  const res = await fetch(`${API}/systems`);
-  return await res.json();
+// Получаем системы с сервера
+async function loadSystems(){
+  systems = await (await fetch(`${API}/systems`)).json();
+  renderSystems();
 }
 
-// Отправляем систему на сервер
+// Сохраняем систему на сервере
 async function saveSystem(sys){
   await fetch(`${API}/systems`, {
     method:'POST',
@@ -17,7 +47,103 @@ async function saveSystem(sys){
 }
 
 // Удаляем все системы на сервере
-async function clearSystems(){
+async function clearAll(){
+  if(!confirm('Очистить все системы?')) return;
   await fetch(`${API}/systems`, {method:'DELETE'});
+  systems = [];
+  renderSystems();
 }
+
+// Добавляем систему
+function addSystem(){
+  const id = prompt('ID системы (например J123456):');
+  if(!id) return;
+  const sys = {id, name:id, x:50, y:50, connections:[], home:false};
+  systems.push(sys);
+  saveSystem(sys);
+  renderSystems();
+}
+
+// Отрисовка систем и соединений
+function renderSystems(){
+  const map = document.getElementById('map');
+  map.innerHTML = '';
+  const svg = document.getElementById('connections');
+  svg.innerHTML = '';
+
+  // Сначала соединения
+  systems.forEach(s=>{
+    s.connections.forEach(cId=>{
+      const target = systems.find(t=>t.id===cId);
+      if(!target) return;
+      const line = document.createElementNS("http://www.w3.org/2000/svg","line");
+      line.setAttribute('x1', s.x+60);
+      line.setAttribute('y1', s.y+25);
+      line.setAttribute('x2', target.x+60);
+      line.setAttribute('y2', target.y+25);
+      line.setAttribute('stroke','#888');
+      line.setAttribute('stroke-width','2');
+      svg.appendChild(line);
+    });
+  });
+
+  // Сами системы
+  systems.forEach(s=>{
+    const div = document.createElement('div');
+    div.className = 'system' + (s.home?' home':'');
+    div.style.left = s.x+'px';
+    div.style.top = s.y+'px';
+    div.textContent = s.name;
+    div.onmousedown = startDrag.bind(null,s);
+    div.onclick = () => selectSystem(s);
+    map.appendChild(div);
+  });
+}
+
+// Выбор системы
+function selectSystem(sys){
+  const action = prompt('Действие: 1-Удалить, 2-Сделать домашней, 3-Добавить связь к другой системе', '1');
+  if(!action) return;
+  if(action==='1'){
+    systems = systems.filter(s=>s.id!==sys.id && s.home===false);
+  } else if(action==='2'){
+    systems.forEach(s=>s.home=false);
+    sys.home = true;
+  } else if(action==='3'){
+    const targetId = prompt('ID системы для связи:');
+    if(targetId && systems.find(s=>s.id===targetId)){
+      if(!sys.connections.includes(targetId)) sys.connections.push(targetId);
+    } else { alert('Система не найдена'); }
+  }
+  saveSystem(sys);
+  renderSystems();
+}
+
+// Перетаскивание
+let dragSys = null;
+let offsetX=0, offsetY=0;
+function startDrag(sys, e){
+  dragSys = sys;
+  offsetX = e.clientX - sys.x;
+  offsetY = e.clientY - sys.y;
+  document.onmousemove = dragMove;
+  document.onmouseup = dragEnd;
+}
+function dragMove(e){
+  if(!dragSys) return;
+  dragSys.x = e.clientX - offsetX;
+  dragSys.y = e.clientY - offsetY;
+  renderSystems();
+}
+function dragEnd(){
+  if(dragSys) saveSystem(dragSys);
+  dragSys=null;
+  document.onmousemove=null;
+  document.onmouseup=null;
+}
+
+// Инициализация
+loadSystems();
 </script>
+</body>
+</html>
