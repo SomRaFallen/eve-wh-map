@@ -3,7 +3,6 @@ const backendUrl = 'https://eve-proxy.onrender.com';
 const characterIdInput = document.getElementById('characterIdInput');
 const loadCharacterBtn = document.getElementById('loadCharacterBtn');
 const addStepBtn = document.getElementById('addStepBtn');
-
 const stepsContainer = document.getElementById('stepsContainer');
 
 const sysTypeInput = document.getElementById('sysType');
@@ -13,6 +12,9 @@ const sysStaticsInput = document.getElementById('sysStatics');
 const updateSystemBtn = document.getElementById('updateSystemBtn');
 const addSystemBtn = document.getElementById('addSystemBtn');
 
+const canvas = document.getElementById('connectionsCanvas');
+const ctx = canvas.getContext('2d');
+
 const debugDiv = document.getElementById('debug');
 
 let currentCharacterId = null;
@@ -21,6 +23,13 @@ let selectedStep = null;
 let selectedSystem = null;
 
 function logDebug(msg){ debugDiv.textContent += msg+'\n'; }
+
+// Resize canvas
+function resizeCanvas(){
+  canvas.width = stepsContainer.scrollWidth;
+  canvas.height = stepsContainer.scrollHeight;
+}
+window.addEventListener('resize', resizeCanvas);
 
 // --- Load route ---
 loadCharacterBtn.addEventListener('click', ()=>{
@@ -46,6 +55,7 @@ function renderSteps(){
   stepsContainer.innerHTML='';
   selectedStep = null;
   selectedSystem = null;
+  resizeCanvas();
 
   currentRoute.steps.forEach((step,i)=>{
     const stepDiv = document.createElement('div');
@@ -58,6 +68,7 @@ function renderSteps(){
       const sysDiv = document.createElement('div');
       sysDiv.className='systemBox';
       sysDiv.textContent = formatSystemText(sys);
+      sysDiv.draggable = true;
 
       sysDiv.addEventListener('click', ()=>{
         selectedStep = step;
@@ -69,14 +80,34 @@ function renderSteps(){
         renderSteps();
       });
 
+      sysDiv.addEventListener('dragstart', e=>{
+        e.dataTransfer.setData('text/plain', JSON.stringify({stepIndex:i, sysIndex:step.systems.indexOf(sys)}));
+      });
+
+      sysDiv.addEventListener('dragover', e=>{ e.preventDefault(); });
+      sysDiv.addEventListener('drop', e=>{
+        e.preventDefault();
+        const data = JSON.parse(e.dataTransfer.getData('text/plain'));
+        const draggedSys = currentRoute.steps[data.stepIndex].systems[data.sysIndex];
+        const targetIndex = step.systems.indexOf(sys);
+        // Remove from old
+        currentRoute.steps[data.stepIndex].systems.splice(data.sysIndex,1);
+        // Insert at target
+        step.systems.splice(targetIndex,0,draggedSys);
+        renderSteps();
+        saveRoute();
+      });
+
       stepDiv.appendChild(sysDiv);
     });
 
     stepsContainer.appendChild(stepDiv);
   });
+
+  drawConnections();
 }
 
-// --- Format system text based on type ---
+// --- Format system text ---
 function formatSystemText(sys){
   if(sys.type==='WH') return `J${sys.id}`;
   if(sys.type==='Low' || sys.type==='High') return `${sys.id} | ${sys.effect || ''}`;
@@ -116,6 +147,36 @@ addStepBtn.addEventListener('click', ()=>{
   saveRoute();
 });
 
+// --- Draw connections ---
+function drawConnections(){
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  currentRoute.steps.forEach(step=>{
+    step.systems.forEach((sys,i)=>{
+      if(i===0) return;
+      const prevSysDiv = findSystemDiv(step.systems[i-1]);
+      const currSysDiv = findSystemDiv(sys);
+      if(!prevSysDiv || !currSysDiv) return;
+
+      const startX = prevSysDiv.offsetLeft + prevSysDiv.offsetWidth/2;
+      const startY = prevSysDiv.offsetTop + prevSysDiv.offsetHeight/2;
+      const endX = currSysDiv.offsetLeft + currSysDiv.offsetWidth/2;
+      const endY = currSysDiv.offsetTop + currSysDiv.offsetHeight/2;
+
+      ctx.strokeStyle = '#ffcc00';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(startX,startY);
+      ctx.lineTo(endX,endY);
+      ctx.stroke();
+    });
+  });
+}
+
+function findSystemDiv(sys){
+  const all = document.querySelectorAll('.systemBox');
+  return Array.from(all).find(div=>div.textContent.startsWith(formatSystemText(sys)));
+}
+
 // --- Save route ---
 async function saveRoute(){
   if(!currentCharacterId) return;
@@ -127,4 +188,4 @@ async function saveRoute(){
     });
     logDebug('Route saved');
   }catch(e){ logDebug(`Error saving route: ${e}`); }
-});
+}
