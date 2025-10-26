@@ -6,8 +6,8 @@ const addStepBtn = document.getElementById('addStepBtn');
 
 const stepsContainer = document.getElementById('stepsContainer');
 
+const sysTypeInput = document.getElementById('sysType');
 const sysIdInput = document.getElementById('sysId');
-const sysClassInput = document.getElementById('sysClass');
 const sysEffectInput = document.getElementById('sysEffect');
 const sysStaticsInput = document.getElementById('sysStatics');
 const updateSystemBtn = document.getElementById('updateSystemBtn');
@@ -22,7 +22,7 @@ let selectedSystem = null;
 
 function logDebug(msg){ debugDiv.textContent += msg+'\n'; }
 
-// Load route
+// --- Load route ---
 loadCharacterBtn.addEventListener('click', ()=>{
   const id = characterIdInput.value.trim();
   if(!id) return;
@@ -41,7 +41,7 @@ async function loadRoute(){
   }catch(e){ logDebug(`Error loading route: ${e}`); }
 }
 
-// Render steps
+// --- Render steps ---
 function renderSteps(){
   stepsContainer.innerHTML='';
   selectedStep = null;
@@ -57,13 +57,13 @@ function renderSteps(){
     step.systems.forEach(sys=>{
       const sysDiv = document.createElement('div');
       sysDiv.className='systemBox';
-      sysDiv.textContent = sys.id;
+      sysDiv.textContent = formatSystemText(sys);
 
       sysDiv.addEventListener('click', ()=>{
         selectedStep = step;
         selectedSystem = sys;
+        sysTypeInput.value = sys.type || 'WH';
         sysIdInput.value = sys.id || '';
-        sysClassInput.value = sys.class || '';
         sysEffectInput.value = sys.effect || '';
         sysStaticsInput.value = (sys.statics||[]).join(',');
         renderSteps();
@@ -76,32 +76,39 @@ function renderSteps(){
   });
 }
 
-// Update system
+// --- Format system text based on type ---
+function formatSystemText(sys){
+  if(sys.type==='WH') return `J${sys.id}`;
+  if(sys.type==='Low' || sys.type==='High') return `${sys.id} | ${sys.effect || ''}`;
+  return sys.id;
+}
+
+// --- Update system ---
 updateSystemBtn.addEventListener('click', ()=>{
   if(!selectedSystem) return;
+  selectedSystem.type = sysTypeInput.value;
   selectedSystem.id = sysIdInput.value.trim();
-  selectedSystem.class = sysClassInput.value.trim();
   selectedSystem.effect = sysEffectInput.value.trim();
   selectedSystem.statics = sysStaticsInput.value.split(',').map(s=>s.trim()).filter(s=>s);
   renderSteps();
   saveRoute();
 });
 
-// Add system
+// --- Add system ---
 addSystemBtn.addEventListener('click', ()=>{
   if(!selectedStep) return;
-  const newSys = { id: `S${selectedStep.step}-${selectedStep.systems.length+1}`, class:'', effect:'', statics:[] };
+  const newSys = { id:`New${selectedStep.systems.length+1}`, type:'WH', effect:'', statics:[] };
   selectedStep.systems.push(newSys);
   selectedSystem = newSys;
+  sysTypeInput.value = newSys.type;
   sysIdInput.value = newSys.id;
-  sysClassInput.value = '';
   sysEffectInput.value = '';
   sysStaticsInput.value = '';
   renderSteps();
   saveRoute();
 });
 
-// Add step
+// --- Add step ---
 addStepBtn.addEventListener('click', ()=>{
   const nextStep = currentRoute.steps.length + 1;
   currentRoute.steps.push({ step: nextStep, systems: [] });
@@ -109,7 +116,7 @@ addStepBtn.addEventListener('click', ()=>{
   saveRoute();
 });
 
-// Save route
+// --- Save route ---
 async function saveRoute(){
   if(!currentCharacterId) return;
   try{
