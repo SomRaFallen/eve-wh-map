@@ -1,0 +1,16 @@
+body { font-family: Arial, sans-serif; margin:0; display:flex; }
+#controls { padding:10px; width:200px; background:#f0f0f0; }
+#mapContainer { flex:1; position:relative; background:#111; min-height:100vh; }
+.systemBlock {
+  position:absolute;
+  width:100px;
+  height:50px;
+  border-radius:10px;
+  color:#fff;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  cursor:pointer;
+  user-select:none;
+}
+#infoPanel { width:250px; padding:10px; background:#222; color:#fff; }
