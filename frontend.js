@@ -1,4 +1,4 @@
-const backendUrl = 'http://localhost:3000'; // если хост на Render — поменяй на свой URL
+const backendUrl = 'http://localhost:3000'; // или твой URL на Render
 
 const mapDiv = document.getElementById('map');
 const debugDiv = document.getElementById('debug');
@@ -56,6 +56,7 @@ function drawMap(route){
   const nodeMap={};
   route.nodes.forEach(n=>nodeMap[n.id]=n);
 
+  // Edges
   route.edges.forEach(e=>{
     const from=nodeMap[e.from], to=nodeMap[e.to];
     if(!from||!to) return;
@@ -76,6 +77,7 @@ function drawMap(route){
     svg.appendChild(line);
   });
 
+  // Nodes
   route.nodes.forEach(n=>{
     const circle=document.createElementNS(svgNS,"circle");
     circle.setAttribute("cx",n.x); circle.setAttribute("cy",n.y); circle.setAttribute("r",10);
@@ -89,6 +91,7 @@ function drawMap(route){
     text.textContent=n.id;
     svg.appendChild(text);
 
+    // Перетаскивание
     circle.addEventListener('mousedown', e=>{
       e.stopPropagation();
       const onMove=evt=>{
@@ -106,6 +109,7 @@ function drawMap(route){
       document.addEventListener('mouseup',onUp);
     });
 
+    // Клик по узлу
     circle.addEventListener('click', e=>{
       e.stopPropagation();
       if(mode==="deleteNode"){
@@ -125,8 +129,10 @@ function drawMap(route){
     });
   });
 
+  // Добавление узла кликом по пустому месту
   svg.addEventListener('click', e=>{
     if(mode!=="addNode") return;
+    if(e.target.tagName !== 'svg') return;
     const rect=svg.getBoundingClientRect();
     const x=e.clientX-rect.left;
     const y=e.clientY-rect.top;
@@ -137,7 +143,7 @@ function drawMap(route){
   });
 }
 
-// --- Save route to server ---
+// --- Save route ---
 async function saveRoute(){
   if(!currentCharacterId) return;
   try{
