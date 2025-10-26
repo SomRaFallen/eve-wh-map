@@ -23,6 +23,8 @@
   #info { position: absolute; top: 10px; right: 10px; width: 250px; background:#222; color:#fff; padding:10px; border-radius:8px; font-size:14px; }
   .buttons { position: absolute; top: 10px; left: 10px; z-index: 10; }
   .buttons button { margin-right: 5px; padding: 5px 10px; }
+  input { width: 100%; margin-bottom: 5px; }
+  label { font-size: 12px; color: #ccc; }
 </style>
 </head>
 <body>
@@ -31,6 +33,7 @@
   <div class="buttons">
     <button onclick="addSystem()">Добавить систему</button>
     <button onclick="clearAll()">Очистить карту</button>
+    <button onclick="saveJSON()">Сохранить JSON</button>
   </div>
   <svg id="connections"></svg>
 </div>
@@ -42,6 +45,7 @@ let systems = [];
 let selectedSystem = null;
 let dragSystem = null;
 let offsetX, offsetY;
+let creatingConnection = null;
 
 function addSystem() {
   const name = prompt("Введите номер системы:", "114337");
@@ -49,8 +53,8 @@ function addSystem() {
   const systemName = name.startsWith('J') ? name : 'J' + name;
   const sys = { id: systems.length+1, name: systemName, x:100, y:100, connections:[], home:false, class:'', effects:'', statics:'' };
   systems.push(sys);
-  fetchSystemInfo(sys);
   renderSystems();
+  selectSystem(sys);
 }
 
 function clearAll() {
@@ -91,7 +95,8 @@ function renderSystems(){
     div.style.top = s.y+'px';
     div.textContent = s.name;
     div.onmousedown = startDrag.bind(null,s);
-    div.onclick = () => selectSystem(s);
+    div.onclick = (e) => { e.stopPropagation(); selectSystem(s); };
+    div.ondblclick = () => startConnection(s);
     map.appendChild(div);
   });
 }
@@ -122,31 +127,52 @@ function selectSystem(sys){
   const infoDiv = document.getElementById('info');
   infoDiv.innerHTML = `
     <b>${sys.name}</b><br>
-    Класс: ${sys.class || '...'}<br>
-    Эффекты: ${sys.effects || '...'}<br>
-    Статики: ${sys.statics || '...'}
+    <label>Класс:</label>
+    <input value="${sys.class}" onchange="updateSystemField('class', this.value)"><br>
+    <label>Эффекты:</label>
+    <input value="${sys.effects}" onchange="updateSystemField('effects', this.value)"><br>
+    <label>Статики:</label>
+    <input value="${sys.statics}" onchange="updateSystemField('statics', this.value)"><br>
+    <button onclick="makeHome()">Сделать домашней</button><br>
+    <button onclick="startConnection(selectedSystem)">Создать соединение (двойной клик)</button>
   `;
 }
 
-async function fetchSystemInfo(sys){
-  const url = `https://api.allorigins.win/get?url=${encodeURIComponent('https://eveok.ru/wh/' + sys.name)}`;
-  try{
-    const res = await fetch(url);
-    const data = await res.json();
-    const parser = new DOMParser();
-    const doc = parser.parseFromString(data.contents, 'text/html');
-    const infoBlock = doc.querySelector('.wh-table'); // адаптировано под eveok.ru
-    if(!infoBlock) return;
-    // Класс, эффекты, статики
-    sys.class = infoBlock.querySelector('td:nth-child(2)')?.textContent || '';
-    sys.effects = infoBlock.querySelector('td:nth-child(3)')?.textContent || '';
-    sys.statics = infoBlock.querySelector('td:nth-child(4)')?.textContent || '';
-    renderSystems();
-    if(selectedSystem && selectedSystem.id===sys.id) selectSystem(sys);
-  } catch(err){
-    console.error('Ошибка получения данных:', err);
+function updateSystemField(field, value){
+  if(selectedSystem) selectedSystem[field] = value;
+  renderSystems();
+}
+
+function makeHome(){
+  systems.forEach(s=>s.home=false);
+  if(selectedSystem) selectedSystem.home = true;
+  renderSystems();
+}
+
+function startConnection(sys){
+  if(!creatingConnection){
+    creatingConnection = sys;
+    alert('Выберите систему для соединения двойным кликом');
+  } else {
+    if(sys.id !== creatingConnection.id){
+      creatingConnection.connections.push(sys.id);
+      creatingConnection = null;
+      renderSystems();
+    }
   }
 }
+
+function saveJSON(){
+  const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(systems,null,2));
+  const dlAnchor = document.createElement('a');
+  dlAnchor.setAttribute("href", dataStr);
+  dlAnchor.setAttribute("download", "systems.json");
+  document.body.appendChild(dlAnchor);
+  dlAnchor.click();
+  dlAnchor.remove();
+}
+
+renderSystems();
 </script>
 
 </body>
