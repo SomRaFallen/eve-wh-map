@@ -4,6 +4,8 @@ const characterIdInput = document.getElementById('characterIdInput');
 const loadCharacterBtn = document.getElementById('loadCharacterBtn');
 
 const stepsContainer = document.getElementById('stepsContainer');
+const canvas = document.getElementById('connectionsCanvas');
+const ctx = canvas.getContext('2d');
 
 const sysIdInput = document.getElementById('sysId');
 const sysClassInput = document.getElementById('sysClass');
@@ -19,9 +21,15 @@ let currentRoute = { steps: [] };
 let selectedStep = null;
 let selectedSystem = null;
 
+// --- Utility ---
 function logDebug(msg){ debugDiv.textContent += msg+'\n'; }
 
-// --- Загрузка персонажа ---
+function resizeCanvas(){
+  canvas.width = stepsContainer.scrollWidth + 100;
+  canvas.height = stepsContainer.scrollHeight + 100;
+}
+
+// --- Load Route ---
 loadCharacterBtn.addEventListener('click', ()=>{
   const id = characterIdInput.value.trim();
   if(!id) return;
@@ -29,33 +37,35 @@ loadCharacterBtn.addEventListener('click', ()=>{
   loadRoute();
 });
 
-// --- Загрузка маршрута ---
 async function loadRoute(){
   if(!currentCharacterId) return;
   try{
     const resp = await fetch(`${backendUrl}/route/${currentCharacterId}`);
-    if(!resp.ok) throw new Error(`HTTP error ${resp.status}`);
+    if(!resp.ok) throw new Error(`HTTP ${resp.status}`);
     currentRoute = await resp.json();
     renderSteps();
-    logDebug(`Loaded route for character ${currentCharacterId}`);
-  }catch(e){ logDebug(`Error loading route: ${e}`); }
+    logDebug(`Loaded route for ${currentCharacterId}`);
+  }catch(e){ logDebug(`Error: ${e}`); }
 }
 
-// --- Рендер ступеней с визуализацией ---
+// --- Render Steps and Systems ---
 function renderSteps(){
   stepsContainer.innerHTML='';
-  currentRoute.steps.forEach((step, i)=>{
+  selectedStep = null;
+  selectedSystem = null;
+  resizeCanvas();
+  currentRoute.steps.forEach((step,i)=>{
     const stepDiv = document.createElement('div');
     stepDiv.className='stepBox';
+    stepDiv.dataset.stepIndex = i;
     const h3 = document.createElement('h3');
     h3.textContent = `Step ${step.step}`;
     stepDiv.appendChild(h3);
 
-    step.systems.forEach(sys=>{
+    step.systems.forEach((sys,j)=>{
       const sysDiv = document.createElement('div');
       sysDiv.className='systemBox';
       sysDiv.textContent = sys.id;
-      if(selectedSystem===sys) sysDiv.classList.add('selected');
 
       sysDiv.addEventListener('click', ()=>{
         selectedStep = step;
@@ -71,19 +81,61 @@ function renderSteps(){
     });
 
     stepsContainer.appendChild(stepDiv);
+  });
+  drawConnections();
+}
 
-    // --- Рисуем стрелки к следующей ступени ---
-    if(i < currentRoute.steps.length - 1){
-      const nextStepDiv = document.createElement('div');
-      nextStepDiv.className='arrow';
-      const rect1 = stepDiv.getBoundingClientRect();
-      const rect2 = stepDiv.nextSibling.getBoundingClientRect();
-      stepDiv.style.position='relative';
-    }
+// --- Draw Connections ---
+function drawConnections(){
+  resizeCanvas();
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+
+  currentRoute.steps.forEach((step,i)=>{
+    const stepDiv = stepsContainer.children[i];
+    step.systems.forEach((sys,j)=>{
+      const sysDiv = stepDiv.children[j+1];
+      const rect = sysDiv.getBoundingClientRect();
+      const parentRect = stepsContainer.getBoundingClientRect();
+      sys._x = rect.left + rect.width/2 - parentRect.left;
+      sys._y = rect.top + rect.height/2 - parentRect.top;
+
+      // connect to next step's first system (basic linear connection)
+      if(i < currentRoute.steps.length-1 && currentRoute.steps[i+1].systems[0]){
+        const nextSys = currentRoute.steps[i+1].systems[0];
+        ctx.strokeStyle='#ffcc00';
+        ctx.lineWidth=2;
+        ctx.beginPath();
+        ctx.moveTo(sys._x, sys._y);
+        ctx.lineTo(nextSys._x, nextSys._y);
+        ctx.stroke();
+      }
+
+      // draw additional arrows if statics defined (for cycles)
+      (sys.statics||[]).forEach(staticId=>{
+        const target = findSystemById(staticId);
+        if(target){
+          ctx.strokeStyle='#00ccff';
+          ctx.beginPath();
+          ctx.moveTo(sys._x, sys._y);
+          ctx.lineTo(target._x, target._y);
+          ctx.stroke();
+        }
+      });
+    });
   });
 }
 
-// --- Обновление системы ---
+// --- Helpers ---
+function findSystemById(id){
+  for(const step of currentRoute.steps){
+    for(const sys of step.systems){
+      if(sys.id===id) return sys;
+    }
+  }
+  return null;
+}
+
+// --- Update System ---
 updateSystemBtn.addEventListener('click', ()=>{
   if(!selectedSystem) return;
   selectedSystem.id = sysIdInput.value.trim();
@@ -94,7 +146,7 @@ updateSystemBtn.addEventListener('click', ()=>{
   saveRoute();
 });
 
-// --- Добавление системы ---
+// --- Add System ---
 addSystemBtn.addEventListener('click', ()=>{
   if(!selectedStep) return;
   const nextId = selectedStep.step*10 + selectedStep.systems.length + 1;
@@ -109,7 +161,7 @@ addSystemBtn.addEventListener('click', ()=>{
   saveRoute();
 });
 
-// --- Сохранение маршрута ---
+// --- Save Route ---
 async function saveRoute(){
   if(!currentCharacterId) return;
   try{
@@ -119,10 +171,10 @@ async function saveRoute(){
       body: JSON.stringify(currentRoute)
     });
     logDebug('Route saved');
-  }catch(e){ logDebug(`Error saving route: ${e}`); }
+  }catch(e){ logDebug(`Error saving: ${e}`); }
 }
 
-// --- Добавление ступени (по двойному клику) ---
+// --- Add Step (double click) ---
 loadCharacterBtn.addEventListener('dblclick', ()=>{
   const nextStep = currentRoute.steps.length + 1;
   currentRoute.steps.push({ step: nextStep, systems: [] });
