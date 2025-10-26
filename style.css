@@ -1,16 +1,10 @@
-body { font-family: Arial, sans-serif; margin:0; display:flex; }
-#controls { padding:10px; width:200px; background:#f0f0f0; }
-#mapContainer { flex:1; position:relative; background:#111; min-height:100vh; }
-.systemBlock {
-  position:absolute;
-  width:100px;
-  height:50px;
-  border-radius:10px;
-  color:#fff;
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  cursor:pointer;
-  user-select:none;
-}
-#infoPanel { width:250px; padding:10px; background:#222; color:#fff; }
+body { margin:0; font-family: Arial, sans-serif; background:#111; color:#fff; }
+#container { display:flex; height:100vh; }
+#map { position: relative; flex:1; background:#111; overflow: hidden; cursor:grab; }
+#sidebar { width:300px; padding:10px; background:#222; overflow-y:auto; }
+.system { position: absolute; width:100px; height:40px; background:#444; color:#fff; 
+          text-align:center; line-height:40px; cursor:pointer; border:2px solid #888; border-radius:8px; user-select:none; }
+.system.home { background:#0f0; }
+.connection { position: absolute; pointer-events:none; }
+input { width:100%; margin:2px 0 5px 0; padding:3px; }
+button { width:100%; margin:2px 0; padding:5px; }
