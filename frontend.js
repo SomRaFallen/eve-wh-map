@@ -14,7 +14,6 @@ const addSystemBtn = document.getElementById('addSystemBtn');
 
 const canvas = document.getElementById('connectionsCanvas');
 const ctx = canvas.getContext('2d');
-
 const debugDiv = document.getElementById('debug');
 
 let currentCharacterId = null;
@@ -24,7 +23,6 @@ let selectedSystem = null;
 
 function logDebug(msg){ debugDiv.textContent += msg+'\n'; }
 
-// --- Resize canvas ---
 function resizeCanvas(){
   const rect = stepsContainer.getBoundingClientRect();
   canvas.width = rect.width;
@@ -34,7 +32,7 @@ function resizeCanvas(){
 }
 window.addEventListener('resize', resizeCanvas);
 
-// --- Load route ---
+// Load route
 loadCharacterBtn.addEventListener('click', ()=>{
   const id = characterIdInput.value.trim();
   if(!id) return;
@@ -53,7 +51,6 @@ async function loadRoute(){
   }catch(e){ logDebug(`Error loading route: ${e}`); }
 }
 
-// --- Render steps ---
 function renderSteps(){
   stepsContainer.innerHTML='';
   selectedStep = null;
@@ -62,15 +59,11 @@ function renderSteps(){
   currentRoute.steps.forEach((step,i)=>{
     const stepDiv = document.createElement('div');
     stepDiv.className='stepBox';
-    const h3 = document.createElement('h3');
-    h3.textContent = `Step ${step.step}`;
-    stepDiv.appendChild(h3);
 
     step.systems.forEach(sys=>{
       const sysDiv = document.createElement('div');
       sysDiv.className='systemBox';
       sysDiv.textContent = formatSystemText(sys);
-      sysDiv.draggable = true;
 
       sysDiv.addEventListener('click', ()=>{
         selectedStep = step;
@@ -80,22 +73,6 @@ function renderSteps(){
         sysEffectInput.value = sys.effect || '';
         sysStaticsInput.value = (sys.statics||[]).join(',');
         renderSteps();
-      });
-
-      sysDiv.addEventListener('dragstart', e=>{
-        e.dataTransfer.setData('text/plain', JSON.stringify({stepIndex:i, sysIndex:step.systems.indexOf(sys)}));
-      });
-
-      sysDiv.addEventListener('dragover', e=>{ e.preventDefault(); });
-      sysDiv.addEventListener('drop', e=>{
-        e.preventDefault();
-        const data = JSON.parse(e.dataTransfer.getData('text/plain'));
-        const draggedSys = currentRoute.steps[data.stepIndex].systems[data.sysIndex];
-        const targetIndex = step.systems.indexOf(sys);
-        currentRoute.steps[data.stepIndex].systems.splice(data.sysIndex,1);
-        step.systems.splice(targetIndex,0,draggedSys);
-        renderSteps();
-        saveRoute();
       });
 
       stepDiv.appendChild(sysDiv);
@@ -110,14 +87,13 @@ function renderSteps(){
   },0);
 }
 
-// --- Format system text ---
 function formatSystemText(sys){
   if(sys.type==='WH') return `J${sys.id}`;
-  if(sys.type==='Low' || sys.type==='High') return `${sys.id} | ${sys.effect || ''}`;
+  if(sys.type==='Low' || sys.type==='High') return `${sys.id}`;
   return sys.id;
 }
 
-// --- Update system ---
+// Update system
 updateSystemBtn.addEventListener('click', ()=>{
   if(!selectedSystem) return;
   selectedSystem.type = sysTypeInput.value;
@@ -128,7 +104,7 @@ updateSystemBtn.addEventListener('click', ()=>{
   saveRoute();
 });
 
-// --- Add system ---
+// Add system
 addSystemBtn.addEventListener('click', ()=>{
   if(!selectedStep) return;
   const newSys = { id:`New${selectedStep.systems.length+1}`, type:'WH', effect:'', statics:[] };
@@ -142,7 +118,7 @@ addSystemBtn.addEventListener('click', ()=>{
   saveRoute();
 });
 
-// --- Add step ---
+// Add step
 addStepBtn.addEventListener('click', ()=>{
   const nextStep = currentRoute.steps.length + 1;
   currentRoute.steps.push({ step: nextStep, systems: [] });
@@ -150,7 +126,7 @@ addStepBtn.addEventListener('click', ()=>{
   saveRoute();
 });
 
-// --- Draw connections ---
+// Draw connections
 function drawConnections(){
   ctx.clearRect(0,0,canvas.width,canvas.height);
   currentRoute.steps.forEach(step=>{
@@ -180,7 +156,7 @@ function findSystemDiv(sys){
   return Array.from(all).find(div=>div.textContent.startsWith(formatSystemText(sys)));
 }
 
-// --- Save route ---
+// Save route
 async function saveRoute(){
   if(!currentCharacterId) return;
   try{
