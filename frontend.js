@@ -33,10 +33,18 @@ async function handleAuth() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ code }),
     });
-    const data = await resp.json();
+
+    let data;
+    try {
+      data = await resp.json();
+    } catch (jsonErr) {
+      const text = await resp.text();
+      characterInfo.innerText = '❌ Server returned invalid JSON:\n' + text;
+      return;
+    }
 
     if (data.error) {
-      characterInfo.innerText = `Error: ${data.error_description || data.error}`;
+      characterInfo.innerText = `❌ Error: ${data.error_description || data.error}`;
       return;
     }
 
@@ -51,8 +59,8 @@ async function handleAuth() {
       <p>${k.date}: ${k.ship} in ${k.solarSystem}</p>
     `).join('');
   } catch (e) {
+    characterInfo.innerText = '❌ Error fetching character info';
     console.error(e);
-    characterInfo.innerText = 'Error fetching character info';
   }
 }
 
