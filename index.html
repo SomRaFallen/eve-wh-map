@@ -4,9 +4,10 @@
 <meta charset="UTF-8">
 <title>WH Map</title>
 <style>
-  body { font-family: Arial; margin:0; display:flex; }
-  #map { flex:1; position:relative; background:#111; height:100vh; }
-  .system { position:absolute; width:100px; height:50px; background:#444; color:#fff; border-radius:10px; text-align:center; cursor:pointer; display:flex; align-items:center; justify-content:center; }
+  body { font-family: Arial; margin:0; display:flex; height:100vh; }
+  #mapContainer { flex:1; position:relative; background:#111; }
+  svg { position:absolute; left:0; top:0; width:100%; height:100%; pointer-events:none; }
+  .system { position:absolute; width:100px; height:50px; background:#444; color:#fff; border-radius:10px; text-align:center; cursor:pointer; display:flex; align-items:center; justify-content:center; user-select:none; }
   .system.home { border:2px solid yellow; }
   #sidebar { width:300px; background:#222; color:#fff; padding:10px; overflow:auto; }
   input, select, button { margin:3px 0; width:100%; }
@@ -15,7 +16,9 @@
 </head>
 <body>
 
-<div id="map"></div>
+<div id="mapContainer">
+  <svg id="connectionsLayer"></svg>
+</div>
 
 <div id="sidebar">
   <input id="newSystem" placeholder="Введите номер системы" />
@@ -23,9 +26,9 @@
   <hr>
   <div id="systemInfo">Выберите систему</div>
   <hr>
-  <button id="makeHomeBtn" onclick="makeHome()">Сделать домашней</button>
-  <button id="zkbBtn" onclick="openZKB()">Открыть ZKB</button>
-  <button id="eveokBtn" onclick="openEveOK()">Открыть EveOK</button>
+  <button onclick="makeHome()">Сделать домашней</button>
+  <button onclick="openZKB()">Открыть ZKB</button>
+  <button onclick="openEveOK()">Открыть EveOK</button>
   <hr>
   <label>Класс WH:</label>
   <input id="sysClass" oninput="updateSystem()" />
@@ -40,8 +43,10 @@ let systems = [];
 let selectedSystem = null;
 let dragging = null;
 let offsetX=0, offsetY=0;
+let connectFrom = null;
 
-const map = document.getElementById('map');
+const mapContainer = document.getElementById('mapContainer');
+const connectionsLayer = document.getElementById('connectionsLayer');
 const systemInfo = document.getElementById('systemInfo');
 const sysClass = document.getElementById('sysClass');
 const sysEffects = document.getElementById('sysEffects');
@@ -69,19 +74,35 @@ function addSystem(){
 }
 
 function renderSystems(){
-  map.innerHTML = '';
+  // Удаляем старые дивы систем
+  mapContainer.querySelectorAll('.system').forEach(el=>el.remove());
   systems.forEach(sys=>{
     const div = document.createElement('div');
     div.className = 'system'+(sys.home?' home':'');
     div.style.left = sys.x+'px';
     div.style.top = sys.y+'px';
     div.textContent = sys.name;
-    div.onmousedown = e => { dragging=sys; offsetX=e.offsetX; offsetY=e.offsetY; selectSystem(sys); };
-    div.ondblclick = () => connectMode(sys);
-    map.appendChild(div);
+
+    div.onmousedown = e=>{
+      dragging = sys;
+      offsetX = e.clientX - sys.x;
+      offsetY = e.clientY - sys.y;
+      selectSystem(sys);
+    };
+    div.ondblclick = ()=>connectMode(sys);
+    mapContainer.appendChild(div);
   });
   renderConnections();
 }
+
+document.addEventListener('mouseup', ()=>dragging=null);
+document.addEventListener('mousemove', e=>{
+  if(dragging){
+    dragging.x = e.clientX - offsetX;
+    dragging.y = e.clientY - offsetY;
+    renderSystems(); // перерисовка систем и соединений
+  }
+});
 
 function selectSystem(sys){
   selectedSystem = sys;
@@ -97,15 +118,6 @@ function updateSystem(){
   selectedSystem.effects = sysEffects.value;
   selectedSystem.statics = sysStatics.value;
 }
-
-document.addEventListener('mouseup', ()=>dragging=null);
-document.addEventListener('mousemove', e=>{
-  if(dragging){
-    dragging.x = e.clientX - offsetX;
-    dragging.y = e.clientY - offsetY;
-    renderSystems();
-  }
-});
 
 function makeHome(){
   if(!selectedSystem) return;
@@ -125,15 +137,14 @@ function openEveOK(){
 }
 
 // ---------------- Connections -----------------
-let connectFrom = null;
 function connectMode(sys){
   if(!connectFrom) {
     connectFrom = sys;
     alert('Выберите систему для соединения с '+sys.name);
   } else {
     if(connectFrom!==sys){
-      connectFrom.connections.push(sys.name);
-      sys.connections.push(connectFrom.name);
+      if(!connectFrom.connections.includes(sys.name)) connectFrom.connections.push(sys.name);
+      if(!sys.connections.includes(connectFrom.name)) sys.connections.push(connectFrom.name);
       connectFrom = null;
       renderConnections();
     }
@@ -141,10 +152,8 @@ function connectMode(sys){
 }
 
 function renderConnections(){
-  const svgs = document.createElementNS("http://www.w3.org/2000/svg",'svg');
-  svgs.style.position='absolute';
-  svgs.style.left='0'; svgs.style.top='0';
-  svgs.style.width='100%'; svgs.style.height='100%';
+  // очищаем слой
+  connectionsLayer.innerHTML='';
   systems.forEach(sys=>{
     sys.connections.forEach(conn=>{
       const target = systems.find(s=>s.name===conn);
@@ -155,13 +164,11 @@ function renderConnections(){
         line.setAttribute('x2', target.x+50);
         line.setAttribute('y2', target.y+25);
         line.classList.add('connection');
-        svgs.appendChild(line);
+        connectionsLayer.appendChild(line);
       }
     });
   });
-  map.appendChild(svgs);
 }
-
 </script>
 </body>
 </html>
