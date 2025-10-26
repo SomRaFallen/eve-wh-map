@@ -2,28 +2,64 @@
 <html lang="ru">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>EVE WH Map</title>
-<link rel="stylesheet" href="style.css">
+<title>Информация о Wormhole</title>
+<style>
+    body { font-family: Arial, sans-serif; padding: 20px; background: #f0f0f0; }
+    #info { margin-top: 20px; padding: 15px; border: 1px solid #ccc; background: #fff; border-radius: 8px; }
+    input { padding: 5px; font-size: 16px; }
+    button { padding: 5px 10px; font-size: 16px; margin-left: 5px; }
+</style>
 </head>
 <body>
-  <div id="controls">
-    <button id="loginBtn">Авторизация</button>
-    <input type="text" id="systemInput" placeholder="Введите номер системы">
-    <select id="systemType">
-      <option value="wh">WH</option>
-      <option value="low">Low</option>
-      <option value="hi">Hi</option>
-      <option value="null">0.0</option>
-    </select>
-    <button id="addSystemBtn">Добавить систему</button>
-  </div>
-  <div id="mapContainer"></div>
-  <div id="infoPanel">
-    <h3>Информация о системе</h3>
-    <div id="infoContent">Нажмите на систему</div>
-  </div>
 
-<script src="frontend.js"></script>
+<h2>Проверка информации о Wormhole</h2>
+<input type="text" id="systemName" placeholder="Введите имя системы, например J105443">
+<button onclick="loadWH()">Загрузить данные</button>
+
+<div id="info">Здесь будет информация о системе</div>
+
+<script>
+async function fetchWHInfo(systemName) {
+    const infoDiv = document.getElementById('info');
+    infoDiv.innerHTML = 'Загрузка...';
+
+    const url = `https://eveok.ru/wh/${systemName}`;
+
+    try {
+        const response = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(url)}`);
+        const data = await response.json();
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(data.contents, 'text/html');
+
+        const row = doc.querySelector('table tbody tr');
+        if (!row) {
+            infoDiv.innerHTML = 'Система не найдена';
+            return;
+        }
+
+        const cells = row.querySelectorAll('td');
+        const whClass = cells[1]?.textContent.trim() || 'Unknown';
+        const effects = cells[2]?.textContent.trim() || 'None';
+        const statics = cells[3]?.textContent.trim() || 'None';
+
+        infoDiv.innerHTML = `
+            <b>Класс WH:</b> ${whClass}<br>
+            <b>Эффект:</b> ${effects}<br>
+            <b>Статики:</b> ${statics}
+        `;
+    } catch (err) {
+        console.error(err);
+        infoDiv.innerHTML = 'Ошибка загрузки данных';
+    }
+}
+
+function loadWH() {
+    const systemInput = document.getElementById('systemName');
+    let name = systemInput.value.trim();
+    if(!name) return alert('Введите имя системы');
+    fetchWHInfo(name);
+}
+</script>
+
 </body>
 </html>
