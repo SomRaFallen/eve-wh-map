@@ -2,24 +2,31 @@
 <html lang="ru">
 <head>
 <meta charset="UTF-8">
-<title>EVE WH Map</title>
+<title>WH Map</title>
 <style>
-  body { font-family: sans-serif; margin:0; overflow:hidden; display:flex; }
-  #map { flex:1; background:#111; position:relative; }
-  #info { width:250px; background:#222; color:#fff; padding:10px; box-sizing:border-box; }
+  body { font-family: Arial; margin:0; overflow:hidden; }
+  #map { position: relative; width: 100vw; height: 100vh; background: #111; }
   .system {
-    width: 120px; height: 50px; border-radius: 8px;
-    background:#222; color:#fff; text-align:center;
-    line-height:50px; position:absolute; cursor:pointer;
-    user-select:none; border:2px solid #555;
+    position: absolute;
+    width: 120px;
+    height: 50px;
+    background: #333;
+    color: #fff;
+    text-align: center;
+    line-height: 50px;
+    border-radius: 10px;
+    cursor: grab;
+    user-select: none;
   }
-  .system.home { border-color: gold; }
-  .buttons { position:absolute; top:10px; left:10px; z-index:1000; }
-  .buttons button { margin:3px; padding:5px 10px; }
-  svg { position:absolute; top:0; left:0; width:100%; height:100%; pointer-events:none; }
+  .system.home { border: 2px solid gold; }
+  #connections { position:absolute; width:100%; height:100%; pointer-events:none; }
+  #info { position: absolute; top: 10px; right: 10px; width: 250px; background:#222; color:#fff; padding:10px; border-radius:8px; font-size:14px; }
+  .buttons { position: absolute; top: 10px; left: 10px; z-index: 10; }
+  .buttons button { margin-right: 5px; padding: 5px 10px; }
 </style>
 </head>
 <body>
+
 <div id="map">
   <div class="buttons">
     <button onclick="addSystem()">Добавить систему</button>
@@ -27,59 +34,40 @@
   </div>
   <svg id="connections"></svg>
 </div>
-<div id="info">
-  <h3>Информация о системе</h3>
-  <div id="infoContent">Выберите систему</div>
-</div>
+
+<div id="info">Информация о системе</div>
 
 <script>
-const API = 'https://eve-proxy.onrender.com';
 let systems = [];
 let selectedSystem = null;
+let dragSystem = null;
+let offsetX, offsetY;
 
-// Получаем системы с сервера
-async function loadSystems(){
-  systems = await (await fetch(`${API}/systems`)).json();
+function addSystem() {
+  const name = prompt("Введите номер системы:", "114337");
+  if(!name) return;
+  const systemName = name.startsWith('J') ? name : 'J' + name;
+  const sys = { id: systems.length+1, name: systemName, x:100, y:100, connections:[], home:false, class:'', effects:'', statics:'' };
+  systems.push(sys);
+  fetchSystemInfo(sys);
   renderSystems();
 }
 
-// Сохраняем систему на сервере
-async function saveSystem(sys){
-  await fetch(`${API}/systems`, {
-    method:'POST',
-    headers:{'Content-Type':'application/json'},
-    body: JSON.stringify(sys)
-  });
-}
-
-// Удаляем все системы на сервере
-async function clearAll(){
-  if(!confirm('Очистить все системы?')) return;
-  await fetch(`${API}/systems`, {method:'DELETE'});
+function clearAll() {
   systems = [];
   renderSystems();
-  document.getElementById('infoContent').innerHTML = 'Выберите систему';
+  document.getElementById('info').innerHTML = 'Информация о системе';
 }
 
-// Добавляем систему
-function addSystem(){
-  const id = prompt('ID системы (только цифры, буква J добавится автоматически):');
-  if(!id) return;
-  const sysId = 'J' + id;
-  const sys = {id: sysId, name: sysId, x:50, y:50, connections:[], home:false, whClass:'?', effect:'?', statics:'?'};
-  systems.push(sys);
-  saveSystem(sys);
-  renderSystems();
-}
-
-// Отрисовка систем и соединений
 function renderSystems(){
   const map = document.getElementById('map');
-  map.innerHTML = '';
   const svg = document.getElementById('connections');
-  svg.innerHTML = '';
 
-  // Сначала соединения
+  // Очистка старых элементов
+  svg.innerHTML = '';
+  Array.from(map.querySelectorAll('.system')).forEach(e=>e.remove());
+
+  // Рисуем соединения
   systems.forEach(s=>{
     s.connections.forEach(cId=>{
       const target = systems.find(t=>t.id===cId);
@@ -95,7 +83,7 @@ function renderSystems(){
     });
   });
 
-  // Сами системы
+  // Рисуем системы
   systems.forEach(s=>{
     const div = document.createElement('div');
     div.className = 'system' + (s.home?' home':'');
@@ -108,66 +96,58 @@ function renderSystems(){
   });
 }
 
-// Выбор системы
+function startDrag(sys, e) {
+  dragSystem = sys;
+  offsetX = e.offsetX;
+  offsetY = e.offsetY;
+  document.onmousemove = doDrag;
+  document.onmouseup = stopDrag;
+}
+
+function doDrag(e) {
+  if(!dragSystem) return;
+  dragSystem.x = e.clientX - offsetX;
+  dragSystem.y = e.clientY - offsetY;
+  renderSystems();
+}
+
+function stopDrag() {
+  dragSystem = null;
+  document.onmousemove = null;
+  document.onmouseup = null;
+}
+
 function selectSystem(sys){
   selectedSystem = sys;
-  renderInfo(sys);
-
-  const action = prompt('Действие: 1-Удалить, 2-Сделать домашней, 3-Добавить связь к другой системе', '3');
-  if(!action) return;
-  if(action==='1'){
-    systems = systems.filter(s=>s.id!==sys.id && s.home===false);
-    document.getElementById('infoContent').innerHTML = 'Выберите систему';
-  } else if(action==='2'){
-    systems.forEach(s=>s.home=false);
-    sys.home = true;
-  } else if(action==='3'){
-    const targetId = prompt('ID системы для связи (J + цифры):');
-    if(targetId && systems.find(s=>s.id===targetId)){
-      if(!sys.connections.includes(targetId)) sys.connections.push(targetId);
-    } else { alert('Система не найдена'); }
-  }
-  saveSystem(sys);
-  renderSystems();
-}
-
-// Перетаскивание
-let dragSys = null;
-let offsetX=0, offsetY=0;
-function startDrag(sys, e){
-  dragSys = sys;
-  offsetX = e.clientX - sys.x;
-  offsetY = e.clientY - sys.y;
-  document.onmousemove = dragMove;
-  document.onmouseup = dragEnd;
-}
-function dragMove(e){
-  if(!dragSys) return;
-  dragSys.x = e.clientX - offsetX;
-  dragSys.y = e.clientY - offsetY;
-  renderSystems();
-}
-function dragEnd(){
-  if(dragSys) saveSystem(dragSys);
-  dragSys=null;
-  document.onmousemove=null;
-  document.onmouseup=null;
-}
-
-// Панель информации
-function renderInfo(sys){
-  const content = document.getElementById('infoContent');
-  content.innerHTML = `
-    <b>ID:</b> ${sys.id}<br>
-    <b>Класс WH:</b> ${sys.whClass}<br>
-    <b>Эффект:</b> ${sys.effect}<br>
-    <b>Статики:</b> ${sys.statics}<br>
-    <b>Домашняя:</b> ${sys.home ? 'Да':'Нет'}
+  const infoDiv = document.getElementById('info');
+  infoDiv.innerHTML = `
+    <b>${sys.name}</b><br>
+    Класс: ${sys.class || '...'}<br>
+    Эффекты: ${sys.effects || '...'}<br>
+    Статики: ${sys.statics || '...'}
   `;
 }
 
-// Инициализация
-loadSystems();
+async function fetchSystemInfo(sys){
+  const url = `https://api.allorigins.win/get?url=${encodeURIComponent('https://eveok.ru/wh/' + sys.name)}`;
+  try{
+    const res = await fetch(url);
+    const data = await res.json();
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(data.contents, 'text/html');
+    const infoBlock = doc.querySelector('.wh-table'); // адаптировано под eveok.ru
+    if(!infoBlock) return;
+    // Класс, эффекты, статики
+    sys.class = infoBlock.querySelector('td:nth-child(2)')?.textContent || '';
+    sys.effects = infoBlock.querySelector('td:nth-child(3)')?.textContent || '';
+    sys.statics = infoBlock.querySelector('td:nth-child(4)')?.textContent || '';
+    renderSystems();
+    if(selectedSystem && selectedSystem.id===sys.id) selectSystem(sys);
+  } catch(err){
+    console.error('Ошибка получения данных:', err);
+  }
+}
 </script>
+
 </body>
 </html>
