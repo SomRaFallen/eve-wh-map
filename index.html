@@ -1,19 +1,167 @@
 <!DOCTYPE html>
 <html lang="ru">
 <head>
-  <meta charset="UTF-8">
-  <title>Map WH</title>
-  <link rel="stylesheet" href="style.css">
+<meta charset="UTF-8">
+<title>WH Map</title>
+<style>
+  body { font-family: Arial; margin:0; display:flex; }
+  #map { flex:1; position:relative; background:#111; height:100vh; }
+  .system { position:absolute; width:100px; height:50px; background:#444; color:#fff; border-radius:10px; text-align:center; cursor:pointer; display:flex; align-items:center; justify-content:center; }
+  .system.home { border:2px solid yellow; }
+  #sidebar { width:300px; background:#222; color:#fff; padding:10px; overflow:auto; }
+  input, select, button { margin:3px 0; width:100%; }
+  .connection { stroke:#0f0; stroke-width:2; }
+</style>
 </head>
 <body>
-  <div id="container">
-    <div id="map"></div>
-    <div id="sidebar">
-      <input id="newSystem" placeholder="Введите систему (например J123456)">
-      <button onclick="addSystem()">Добавить систему</button>
-      <div id="info"></div>
-    </div>
-  </div>
-  <script src="script.js"></script>
+
+<div id="map"></div>
+
+<div id="sidebar">
+  <input id="newSystem" placeholder="Введите номер системы" />
+  <button onclick="addSystem()">Добавить систему</button>
+  <hr>
+  <div id="systemInfo">Выберите систему</div>
+  <hr>
+  <button id="makeHomeBtn" onclick="makeHome()">Сделать домашней</button>
+  <button id="zkbBtn" onclick="openZKB()">Открыть ZKB</button>
+  <button id="eveokBtn" onclick="openEveOK()">Открыть EveOK</button>
+  <hr>
+  <label>Класс WH:</label>
+  <input id="sysClass" oninput="updateSystem()" />
+  <label>Эффекты:</label>
+  <input id="sysEffects" oninput="updateSystem()" />
+  <label>Статики:</label>
+  <input id="sysStatics" oninput="updateSystem()" />
+</div>
+
+<script>
+let systems = [];
+let selectedSystem = null;
+let dragging = null;
+let offsetX=0, offsetY=0;
+
+const map = document.getElementById('map');
+const systemInfo = document.getElementById('systemInfo');
+const sysClass = document.getElementById('sysClass');
+const sysEffects = document.getElementById('sysEffects');
+const sysStatics = document.getElementById('sysStatics');
+
+function addSystem(){
+  const input = document.getElementById('newSystem').value.trim();
+  if(!input) return;
+  let sysName = input.toUpperCase();
+  if(!sysName.startsWith('J')) sysName = 'J'+sysName;
+
+  const sys = {
+    name: sysName,
+    class: '',
+    effects: '',
+    statics: '',
+    home:false,
+    x:50 + systems.length*20,
+    y:50 + systems.length*20,
+    connections:[]
+  };
+  systems.push(sys);
+  renderSystems();
+  selectSystem(sys);
+}
+
+function renderSystems(){
+  map.innerHTML = '';
+  systems.forEach(sys=>{
+    const div = document.createElement('div');
+    div.className = 'system'+(sys.home?' home':'');
+    div.style.left = sys.x+'px';
+    div.style.top = sys.y+'px';
+    div.textContent = sys.name;
+    div.onmousedown = e => { dragging=sys; offsetX=e.offsetX; offsetY=e.offsetY; selectSystem(sys); };
+    div.ondblclick = () => connectMode(sys);
+    map.appendChild(div);
+  });
+  renderConnections();
+}
+
+function selectSystem(sys){
+  selectedSystem = sys;
+  systemInfo.innerHTML = `<b>${sys.name}</b>`;
+  sysClass.value = sys.class;
+  sysEffects.value = sys.effects;
+  sysStatics.value = sys.statics;
+}
+
+function updateSystem(){
+  if(!selectedSystem) return;
+  selectedSystem.class = sysClass.value;
+  selectedSystem.effects = sysEffects.value;
+  selectedSystem.statics = sysStatics.value;
+}
+
+document.addEventListener('mouseup', ()=>dragging=null);
+document.addEventListener('mousemove', e=>{
+  if(dragging){
+    dragging.x = e.clientX - offsetX;
+    dragging.y = e.clientY - offsetY;
+    renderSystems();
+  }
+});
+
+function makeHome(){
+  if(!selectedSystem) return;
+  systems.forEach(s=>s.home=false);
+  selectedSystem.home = true;
+  renderSystems();
+}
+
+function openZKB(){
+  if(!selectedSystem) return;
+  window.open(`https://zkillboard.com/system/${selectedSystem.name}/`, '_blank');
+}
+
+function openEveOK(){
+  if(!selectedSystem) return;
+  window.open(`https://eveok.ru/wh/${selectedSystem.name}`, '_blank');
+}
+
+// ---------------- Connections -----------------
+let connectFrom = null;
+function connectMode(sys){
+  if(!connectFrom) {
+    connectFrom = sys;
+    alert('Выберите систему для соединения с '+sys.name);
+  } else {
+    if(connectFrom!==sys){
+      connectFrom.connections.push(sys.name);
+      sys.connections.push(connectFrom.name);
+      connectFrom = null;
+      renderConnections();
+    }
+  }
+}
+
+function renderConnections(){
+  const svgs = document.createElementNS("http://www.w3.org/2000/svg",'svg');
+  svgs.style.position='absolute';
+  svgs.style.left='0'; svgs.style.top='0';
+  svgs.style.width='100%'; svgs.style.height='100%';
+  systems.forEach(sys=>{
+    sys.connections.forEach(conn=>{
+      const target = systems.find(s=>s.name===conn);
+      if(target){
+        const line = document.createElementNS("http://www.w3.org/2000/svg",'line');
+        line.setAttribute('x1', sys.x+50);
+        line.setAttribute('y1', sys.y+25);
+        line.setAttribute('x2', target.x+50);
+        line.setAttribute('y2', target.y+25);
+        line.classList.add('connection');
+        svgs.appendChild(line);
+      }
+    });
+  });
+  map.appendChild(svgs);
+}
+
+</script>
 </body>
 </html>
