@@ -1,106 +1,23 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<title>WH Map</title>
-<style>
-  body { font-family: Arial; display: flex; margin:0; }
-  #map { flex:1; border:1px solid #ccc; height:100vh; position:relative; background:#f0f0f0; }
-  .system { position:absolute; width:100px; height:60px; border-radius:10px; background:#4CAF50; color:white; display:flex; align-items:center; justify-content:center; cursor:pointer; user-select:none; }
-  .home { background:#FF5722; }
-  #info { width:300px; border-left:1px solid #ccc; padding:10px; overflow:auto; background:#fff; }
-  svg { position:absolute; top:0; left:0; width:100%; height:100%; pointer-events:none; }
-</style>
-</head>
-<body>
-  <div id="map">
-    <svg id="connections"></svg>
-  </div>
-  <div id="info">
-    <h3>Информация о системе</h3>
-    <div id="infoContent">Нажмите на систему</div>
-  </div>
-
 <script>
-let systems = [];
-let connections = [];
-let map = document.getElementById('map');
-let infoContent = document.getElementById('infoContent');
+const API = 'https://eve-proxy.onrender.com';
 
-// Загрузка данных из JSON
-fetch('systems.json')
-  .then(res => res.json())
-  .then(data => {
-    systems = data.map((s,i)=>({...s, x:50 + i*120, y:50}));
-    drawSystems();
-  });
+// Получаем все системы с сервера
+async function fetchSystems(){
+  const res = await fetch(`${API}/systems`);
+  return await res.json();
+}
 
-// Рисуем системы
-function drawSystems() {
-  map.innerHTML = '<svg id="connections"></svg>'; // очистка
-  let svg = document.getElementById('connections');
-
-  systems.forEach((s,i)=>{
-    let div = document.createElement('div');
-    div.className = 'system';
-    if(i===0) div.classList.add('home'); // первая система - домашняя
-    div.style.left = s.x + 'px';
-    div.style.top = s.y + 'px';
-    div.textContent = s.name;
-    div.draggable = true;
-    map.appendChild(div);
-
-    div.addEventListener('click', ()=> showInfo(s));
-
-    // drag
-    div.addEventListener('dragstart', e => {
-      e.dataTransfer.setData('text/plain', i);
-    });
-    div.addEventListener('dragend', e => {
-      let rect = map.getBoundingClientRect();
-      s.x = e.pageX - rect.left - 50;
-      s.y = e.pageY - rect.top - 30;
-      drawSystems();
-    });
-  });
-
-  // нарисовать соединения
-  connections.forEach(c=>{
-    let line = document.createElementNS('http://www.w3.org/2000/svg','line');
-    let s1 = systems[c[0]], s2 = systems[c[1]];
-    line.setAttribute('x1', s1.x+50);
-    line.setAttribute('y1', s1.y+30);
-    line.setAttribute('x2', s2.x+50);
-    line.setAttribute('y2', s2.y+30);
-    line.setAttribute('stroke', '#000');
-    line.setAttribute('stroke-width', '2');
-    svg.appendChild(line);
+// Отправляем систему на сервер
+async function saveSystem(sys){
+  await fetch(`${API}/systems`, {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify(sys)
   });
 }
 
-// Показ информации
-function showInfo(s) {
-  infoContent.innerHTML = `
-    <b>Система:</b> ${s.name}<br>
-    <b>Класс WH:</b> ${s.class}<br>
-    <b>Эффект:</b> ${s.effect || 'нет'}<br>
-    <b>Статики:</b> ${s.statics}
-  `;
+// Удаляем все системы на сервере
+async function clearSystems(){
+  await fetch(`${API}/systems`, {method:'DELETE'});
 }
-
-// Добавить соединение через двойной клик
-map.addEventListener('dblclick', e=>{
-  let target = e.target;
-  if(target.classList.contains('system')) {
-    let idx = Array.from(map.children).indexOf(target) - 1; // первый child - svg
-    if(connections.length && connections[connections.length-1].length===1){
-      connections[connections.length-1].push(idx);
-    } else {
-      connections.push([idx]);
-    }
-    drawSystems();
-  }
-});
 </script>
-</body>
-</html>
