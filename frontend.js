@@ -1,5 +1,6 @@
 const backendUrl = 'https://eve-proxy.onrender.com';
 
+const loginBtn = document.getElementById('loginBtn');
 const searchInput = document.getElementById('searchInput');
 const searchBtn = document.getElementById('searchBtn');
 const characterSelect = document.getElementById('characterSelect');
@@ -7,11 +8,16 @@ const characterInfo = document.getElementById('characterInfo');
 const killsDiv = document.getElementById('kills');
 const mapDiv = document.getElementById('map');
 const debugDiv = document.getElementById('debug');
-const loginBtn = document.getElementById('loginBtn');
 
+const addNodeBtn = document.getElementById('addNodeBtn');
+const addEdgeBtn = document.getElementById('addEdgeBtn');
+const deleteNodeBtn = document.getElementById('deleteNodeBtn');
+
+let accessToken = null;
 let currentCharacterId = null;
 let currentRoute = { nodes:[], edges:[] };
-let accessToken = null;
+let mode = null;
+let selectedNodeForEdge = null;
 
 function logDebug(msg){
   console.log(msg);
@@ -24,10 +30,9 @@ loginBtn.addEventListener('click', ()=>{
   window.location.href = url;
 });
 
-// --- получить код из URL после редиректа ---
+// --- получить код из URL ---
 const params = new URLSearchParams(window.location.search);
 const code = params.get('code');
-const state = params.get('state');
 if(code){
   fetch(`${backendUrl}/exchange`,{
     method:'POST',
@@ -40,7 +45,7 @@ if(code){
       accessToken = data.access_token;
       currentCharacterId = data.character.CharacterID;
       loadCharacterData();
-    }else logDebug('Auth error');
+    } else logDebug('Auth error');
   });
 }
 
@@ -72,7 +77,6 @@ async function loadCharacterData(){
   killsDiv.textContent = '';
   mapDiv.innerHTML = '';
 
-  // киллы
   try{
     const killsResp = await fetch(`${backendUrl}/zkbKills?characterId=${currentCharacterId}`);
     const killsData = await killsResp.json();
@@ -81,7 +85,6 @@ async function loadCharacterData(){
       killsData.map(k=>`<p>${k.date}: ${k.ship} in ${k.solarSystem}</p>`).join('');
   }catch(e){ logDebug(`Error fetching kills: ${e}`); }
 
-  // маршрут
   try{
     const routeResp = await fetch(`${backendUrl}/route/${currentCharacterId}`);
     currentRoute = await routeResp.json();
@@ -89,7 +92,24 @@ async function loadCharacterData(){
   }catch(e){ logDebug(`Error loading route: ${e}`); }
 }
 
-// --- функция рисования карты с возможностью редактирования ---
+// --- режимы ---
+addNodeBtn.addEventListener('click', ()=>{ mode="addNode"; });
+addEdgeBtn.addEventListener('click', ()=>{ mode="addEdge"; selectedNodeForEdge=null; });
+deleteNodeBtn.addEventListener('click', ()=>{ mode="deleteNode"; });
+
+// --- клик по карте ---
+mapDiv.addEventListener('click', e=>{
+  if(mode!=="addNode") return;
+  const rect = mapDiv.getBoundingClientRect();
+  const x = e.clientX - rect.left;
+  const y = e.clientY - rect.top;
+  const newId = 'J' + Math.floor(Math.random()*1000000);
+  currentRoute.nodes.push({ id:newId, x, y });
+  drawMap(currentRoute);
+  saveRoute();
+});
+
+// --- рисование карты ---
 function drawMap(route){
   mapDiv.innerHTML = '';
   const svgNS = "http://www.w3.org/2000/svg";
@@ -101,7 +121,6 @@ function drawMap(route){
   const nodeMap = {};
   route.nodes.forEach(n=>nodeMap[n.id]=n);
 
-  // линии
   route.edges.forEach(e=>{
     const from = nodeMap[e.from], to = nodeMap[e.to];
     if(!from || !to) return;
@@ -112,25 +131,45 @@ function drawMap(route){
     svg.appendChild(line);
   });
 
-  // узлы
   route.nodes.forEach(n=>{
     const circle = document.createElementNS(svgNS,"circle");
     circle.setAttribute("cx",n.x); circle.setAttribute("cy",n.y); circle.setAttribute("r",10);
     circle.setAttribute("fill","#00ccff");
     circle.setAttribute("cursor","pointer");
 
-    // перетаскивание
     circle.addEventListener('mousedown', e=>{
+      e.stopPropagation();
       const onMove = evt=>{
         n.x = evt.offsetX; n.y = evt.offsetY;
         drawMap(currentRoute);
       };
-      const onUp = ()=>{ document.removeEventListener('mousemove',onMove); document.removeEventListener('mouseup',onUp); saveRoute(); };
+      const onUp = ()=>{
+        document.removeEventListener('mousemove',onMove);
+        document.removeEventListener('mouseup',onUp);
+        saveRoute();
+      };
       document.addEventListener('mousemove',onMove);
       document.addEventListener('mouseup',onUp);
     });
 
-    // подпись
+    circle.addEventListener('click', e=>{
+      e.stopPropagation();
+      if(mode==="deleteNode"){
+        currentRoute.edges = currentRoute.edges.filter(edge=>edge.from!==n.id && edge.to!==n.id);
+        currentRoute.nodes = currentRoute.nodes.filter(node=>node.id!==n.id);
+        drawMap(currentRoute);
+        saveRoute();
+      } else if(mode==="addEdge"){
+        if(!selectedNodeForEdge) selectedNodeForEdge=n;
+        else {
+          currentRoute.edges.push({ from:selectedNodeForEdge.id, to:n.id });
+          selectedNodeForEdge=null;
+          drawMap(currentRoute);
+          saveRoute();
+        }
+      }
+    });
+
     const text = document.createElementNS(svgNS,"text");
     text.setAttribute("x",n.x+12); text.setAttribute("y",n.y+4);
     text.setAttribute("fill","#fff"); text.setAttribute("font-size","12");
