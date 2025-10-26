@@ -7,22 +7,21 @@
 </head>
 <body>
   <h1>EVE WH Map</h1>
-  <button id="loginBtn">Login with EVE Online</button>
+
+  <h2>Select Character</h2>
+  <input type="text" id="characterIdInput" placeholder="Enter Character ID">
+  <button id="loadCharacterBtn">Load Character</button>
 
   <h2>Search zKillboard</h2>
   <input type="text" id="zkbInput" placeholder="Character name or ID">
   <button id="zkbSearchBtn">Search</button>
   <div id="zkbContainer"></div>
 
-  <h2>Character Map</h2>
-  <select id="characterSelect"></select>
-
-  <div>
-    <button id="addNodeBtn">Add Node</button>
-    <button id="addEdgeBtn">Add Edge</button>
-    <button id="deleteNodeBtn">Delete Node</button>
-    <button id="deleteEdgeBtn">Delete Edge</button>
-  </div>
+  <h2>Map Controls</h2>
+  <button id="addNodeBtn">Add Node</button>
+  <button id="addEdgeBtn">Add Edge</button>
+  <button id="deleteNodeBtn">Delete Node</button>
+  <button id="deleteEdgeBtn">Delete Edge</button>
 
   <div id="map"></div>
 
