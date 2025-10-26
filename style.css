@@ -4,9 +4,10 @@ input,button { padding:6px; margin:5px; border-radius:5px; cursor:pointer; }
 #systemInfoContainer { background:#222; padding:10px; border-radius:8px; margin-bottom:20px; }
 #systemInfoContainer input { width:120px; margin-right:10px; }
 #systemInfoContainer button { padding:6px 12px; }
-#stepsContainer { margin-top:20px; display:flex; flex-wrap:wrap; gap:20px; }
-.stepBox { background:#333; padding:10px; border-radius:8px; }
-.stepBox h3 { margin:0 0 10px 0; color:#ffcc00; }
-.systemBox { background:#444; margin:5px 0; padding:4px 6px; border-radius:4px; cursor:pointer; }
+#stepsContainer { margin-top:20px; display:flex; gap:40px; align-items:flex-start; }
+.stepBox { background:#333; padding:10px; border-radius:8px; min-width:80px; position:relative; }
+.stepBox h3 { margin:0 0 10px 0; color:#ffcc00; text-align:center; }
+.systemBox { background:#444; margin:5px 0; padding:4px 6px; border-radius:4px; cursor:pointer; text-align:center; }
 .systemBox.selected { background:#00ccff; color:#000; }
+.arrow { position:absolute; width:2px; background:#ffcc00; }
 #debug { background:#222; padding:10px; border-radius:5px; white-space:pre-wrap; color:#0f0; margin-top:20px; }
