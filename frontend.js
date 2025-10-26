@@ -41,10 +41,10 @@ async function loadRoute(){
   }catch(e){ logDebug(`Error loading route: ${e}`); }
 }
 
-// --- Рендер ступеней ---
+// --- Рендер ступеней с визуализацией ---
 function renderSteps(){
   stepsContainer.innerHTML='';
-  currentRoute.steps.forEach(step=>{
+  currentRoute.steps.forEach((step, i)=>{
     const stepDiv = document.createElement('div');
     stepDiv.className='stepBox';
     const h3 = document.createElement('h3');
@@ -71,6 +71,15 @@ function renderSteps(){
     });
 
     stepsContainer.appendChild(stepDiv);
+
+    // --- Рисуем стрелки к следующей ступени ---
+    if(i < currentRoute.steps.length - 1){
+      const nextStepDiv = document.createElement('div');
+      nextStepDiv.className='arrow';
+      const rect1 = stepDiv.getBoundingClientRect();
+      const rect2 = stepDiv.nextSibling.getBoundingClientRect();
+      stepDiv.style.position='relative';
+    }
   });
 }
 
@@ -89,12 +98,7 @@ updateSystemBtn.addEventListener('click', ()=>{
 addSystemBtn.addEventListener('click', ()=>{
   if(!selectedStep) return;
   const nextId = selectedStep.step*10 + selectedStep.systems.length + 1;
-  const newSys = {
-    id: nextId.toString(),
-    class: '',
-    effect: '',
-    statics: []
-  };
+  const newSys = { id: nextId.toString(), class:'', effect:'', statics:[] };
   selectedStep.systems.push(newSys);
   selectedSystem = newSys;
   sysIdInput.value = newSys.id;
@@ -118,7 +122,7 @@ async function saveRoute(){
   }catch(e){ logDebug(`Error saving route: ${e}`); }
 }
 
-// --- Добавление ступени (по Ctrl+Click на кнопку Load Character) ---
+// --- Добавление ступени (по двойному клику) ---
 loadCharacterBtn.addEventListener('dblclick', ()=>{
   const nextStep = currentRoute.steps.length + 1;
   currentRoute.steps.push({ step: nextStep, systems: [] });
