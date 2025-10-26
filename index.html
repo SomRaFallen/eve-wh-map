@@ -2,23 +2,29 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>EVE WH Map - Bubble Map</title>
+<title>EVE WH Map</title>
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
-<h1>EVE WH Map - Bubble Map</h1>
+<h1>EVE WH Map</h1>
 
-<div id="characterContainer">
+<div id="authContainer">
+  <button id="loginBtn">Login with EVE</button>
+  <span id="characterName"></span>
+</div>
+
+<div id="characterContainer" style="display:none;">
   <input type="text" id="characterIdInput" placeholder="Character ID">
-  <button id="loadCharacterBtn">Load Route</button>
+  <button id="loadRouteBtn">Load Route</button>
   <button id="addStepBtn">Add Step</button>
+  <button id="loadZKBBtn">Load ZKB</button>
 </div>
 
 <div id="stepsContainer"></div>
 
 <div id="systemInfoContainer">
   <h2>System Info</h2>
-  <label>Type: 
+  <label>Type:
     <select id="sysType">
       <option value="WH">WH</option>
       <option value="Low">Lowsec</option>
@@ -34,6 +40,9 @@
 </div>
 
 <canvas id="connectionsCanvas"></canvas>
+
+<div id="zkbContainer" style="margin-top:20px;"></div>
+
 <pre id="debug"></pre>
 
 <script src="frontend.js"></script>
