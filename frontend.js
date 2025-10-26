@@ -1,5 +1,5 @@
 // frontend.js
-const backendUrl = 'https://eve-proxy.onrender.com'; // URL сервера Render
+const backendUrl = 'https://eve-proxy.onrender.com'; // URL сервера на Render
 const clientId = '5a40c55151c241e3a007f2562fd4e1dd';
 const redirectUri = 'https://somrafallen.github.io/eve-wh-map/';
 
@@ -21,14 +21,15 @@ async function handleAuth() {
   const code = urlParams.get('code');
   if (!code) return;
 
-  // Обмен кода на токен и инфо о персонаже
   try {
+    // Обмен кода на токен и данные персонажа
     const resp = await fetch(`${backendUrl}/exchange`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ code }),
     });
     const data = await resp.json();
+
     characterInfo.innerHTML = `
       <h2>${data.character.CharacterName}</h2>
       <p>System ID: ${data.character.SystemID}</p>
