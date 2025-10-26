@@ -1,179 +1,19 @@
 <!DOCTYPE html>
 <html lang="ru">
 <head>
-<meta charset="UTF-8">
-<title>WH Map</title>
-<style>
-  body { font-family: Arial; margin:0; overflow:hidden; }
-  #map { position: relative; width: 100vw; height: 100vh; background: #111; }
-  .system {
-    position: absolute;
-    width: 120px;
-    height: 50px;
-    background: #333;
-    color: #fff;
-    text-align: center;
-    line-height: 50px;
-    border-radius: 10px;
-    cursor: grab;
-    user-select: none;
-  }
-  .system.home { border: 2px solid gold; }
-  #connections { position:absolute; width:100%; height:100%; pointer-events:none; }
-  #info { position: absolute; top: 10px; right: 10px; width: 250px; background:#222; color:#fff; padding:10px; border-radius:8px; font-size:14px; }
-  .buttons { position: absolute; top: 10px; left: 10px; z-index: 10; }
-  .buttons button { margin-right: 5px; padding: 5px 10px; }
-  input { width: 100%; margin-bottom: 5px; }
-  label { font-size: 12px; color: #ccc; }
-</style>
+  <meta charset="UTF-8">
+  <title>Map WH</title>
+  <link rel="stylesheet" href="style.css">
 </head>
 <body>
-
-<div id="map">
-  <div class="buttons">
-    <button onclick="addSystem()">Добавить систему</button>
-    <button onclick="clearAll()">Очистить карту</button>
-    <button onclick="saveJSON()">Сохранить JSON</button>
+  <div id="container">
+    <div id="map"></div>
+    <div id="sidebar">
+      <input id="newSystem" placeholder="Введите систему (например J123456)">
+      <button onclick="addSystem()">Добавить систему</button>
+      <div id="info"></div>
+    </div>
   </div>
-  <svg id="connections"></svg>
-</div>
-
-<div id="info">Информация о системе</div>
-
-<script>
-let systems = [];
-let selectedSystem = null;
-let dragSystem = null;
-let offsetX, offsetY;
-let creatingConnection = null;
-
-function addSystem() {
-  const name = prompt("Введите номер системы:", "114337");
-  if(!name) return;
-  const systemName = name.startsWith('J') ? name : 'J' + name;
-  const sys = { id: systems.length+1, name: systemName, x:100, y:100, connections:[], home:false, class:'', effects:'', statics:'' };
-  systems.push(sys);
-  renderSystems();
-  selectSystem(sys);
-}
-
-function clearAll() {
-  systems = [];
-  renderSystems();
-  document.getElementById('info').innerHTML = 'Информация о системе';
-}
-
-function renderSystems(){
-  const map = document.getElementById('map');
-  const svg = document.getElementById('connections');
-
-  // Очистка старых элементов
-  svg.innerHTML = '';
-  Array.from(map.querySelectorAll('.system')).forEach(e=>e.remove());
-
-  // Рисуем соединения
-  systems.forEach(s=>{
-    s.connections.forEach(cId=>{
-      const target = systems.find(t=>t.id===cId);
-      if(!target) return;
-      const line = document.createElementNS("http://www.w3.org/2000/svg","line");
-      line.setAttribute('x1', s.x+60);
-      line.setAttribute('y1', s.y+25);
-      line.setAttribute('x2', target.x+60);
-      line.setAttribute('y2', target.y+25);
-      line.setAttribute('stroke','#888');
-      line.setAttribute('stroke-width','2');
-      svg.appendChild(line);
-    });
-  });
-
-  // Рисуем системы
-  systems.forEach(s=>{
-    const div = document.createElement('div');
-    div.className = 'system' + (s.home?' home':'');
-    div.style.left = s.x+'px';
-    div.style.top = s.y+'px';
-    div.textContent = s.name;
-    div.onmousedown = startDrag.bind(null,s);
-    div.onclick = (e) => { e.stopPropagation(); selectSystem(s); };
-    div.ondblclick = () => startConnection(s);
-    map.appendChild(div);
-  });
-}
-
-function startDrag(sys, e) {
-  dragSystem = sys;
-  offsetX = e.offsetX;
-  offsetY = e.offsetY;
-  document.onmousemove = doDrag;
-  document.onmouseup = stopDrag;
-}
-
-function doDrag(e) {
-  if(!dragSystem) return;
-  dragSystem.x = e.clientX - offsetX;
-  dragSystem.y = e.clientY - offsetY;
-  renderSystems();
-}
-
-function stopDrag() {
-  dragSystem = null;
-  document.onmousemove = null;
-  document.onmouseup = null;
-}
-
-function selectSystem(sys){
-  selectedSystem = sys;
-  const infoDiv = document.getElementById('info');
-  infoDiv.innerHTML = `
-    <b>${sys.name}</b><br>
-    <label>Класс:</label>
-    <input value="${sys.class}" onchange="updateSystemField('class', this.value)"><br>
-    <label>Эффекты:</label>
-    <input value="${sys.effects}" onchange="updateSystemField('effects', this.value)"><br>
-    <label>Статики:</label>
-    <input value="${sys.statics}" onchange="updateSystemField('statics', this.value)"><br>
-    <button onclick="makeHome()">Сделать домашней</button><br>
-    <button onclick="startConnection(selectedSystem)">Создать соединение (двойной клик)</button>
-  `;
-}
-
-function updateSystemField(field, value){
-  if(selectedSystem) selectedSystem[field] = value;
-  renderSystems();
-}
-
-function makeHome(){
-  systems.forEach(s=>s.home=false);
-  if(selectedSystem) selectedSystem.home = true;
-  renderSystems();
-}
-
-function startConnection(sys){
-  if(!creatingConnection){
-    creatingConnection = sys;
-    alert('Выберите систему для соединения двойным кликом');
-  } else {
-    if(sys.id !== creatingConnection.id){
-      creatingConnection.connections.push(sys.id);
-      creatingConnection = null;
-      renderSystems();
-    }
-  }
-}
-
-function saveJSON(){
-  const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(systems,null,2));
-  const dlAnchor = document.createElement('a');
-  dlAnchor.setAttribute("href", dataStr);
-  dlAnchor.setAttribute("download", "systems.json");
-  document.body.appendChild(dlAnchor);
-  dlAnchor.click();
-  dlAnchor.remove();
-}
-
-renderSystems();
-</script>
-
+  <script src="script.js"></script>
 </body>
 </html>
