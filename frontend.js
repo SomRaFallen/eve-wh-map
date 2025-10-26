@@ -1,7 +1,7 @@
 const backendUrl = 'https://eve-proxy.onrender.com';
 const clientId = '5a40c55151c241e3a007f2562fd4e1dd';
 const redirectUri = 'https://somrafallen.github.io/eve-wh-map/';
-const scopes = 'publicData esi-location.read_location.v1'; // минимальный набор
+const scopes = 'publicData esi-location.read_location.v1';
 
 const loginBtn = document.getElementById('loginBtn');
 const characterInfo = document.getElementById('characterInfo');
@@ -35,10 +35,9 @@ async function handleAuth() {
 
   if (!code) return;
 
-  // Проверка state
   const savedState = localStorage.getItem('oauthState');
   if (savedState !== state) {
-    logDebug('❌ State mismatch! Potential CSRF attack.');
+    logDebug('❌ State mismatch!');
     return;
   }
 
@@ -52,13 +51,13 @@ async function handleAuth() {
       body: JSON.stringify({ code }),
     });
 
-    logDebug(`HTTP status: ${resp.status}`);
     const text = await resp.text();
+    logDebug(`HTTP status: ${resp.status}`);
     logDebug(`Raw response:\n${text}`);
 
     let data;
     try { data = JSON.parse(text); } catch {
-      characterInfo.innerText = '❌ Server returned non-JSON response. See debug log.';
+      characterInfo.innerText = '❌ Server returned non-JSON response.';
       return;
     }
 
@@ -67,10 +66,7 @@ async function handleAuth() {
       return;
     }
 
-    characterInfo.innerHTML = `
-      <h3>${data.character.CharacterName}</h3>
-      <p>System ID: ${data.character.SystemID || 'Unknown'}</p>
-    `;
+    characterInfo.innerHTML = `<h3>${data.character.CharacterName}</h3><p>System ID: ${data.character.SystemID || 'Unknown'}</p>`;
 
     const killsResp = await fetch(`${backendUrl}/zkbKills?characterId=${data.character.CharacterID}`);
     const killsData = await killsResp.json();
