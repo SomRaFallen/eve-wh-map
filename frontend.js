@@ -1,5 +1,4 @@
-// --- Настройка ---
-const backendUrl = 'https://eve-proxy.onrender.com'; // твой сервер на Render
+const backendUrl = 'https://eve-proxy.onrender.com';
 
 const mapDiv = document.getElementById('map');
 const debugDiv = document.getElementById('debug');
@@ -12,10 +11,17 @@ const addEdgeBtn = document.getElementById('addEdgeBtn');
 const deleteNodeBtn = document.getElementById('deleteNodeBtn');
 const deleteEdgeBtn = document.getElementById('deleteEdgeBtn');
 
+const sysIdInput = document.getElementById('sysId');
+const sysClassInput = document.getElementById('sysClass');
+const sysEffectInput = document.getElementById('sysEffect');
+const sysStaticsInput = document.getElementById('sysStatics');
+const updateSystemBtn = document.getElementById('updateSystemBtn');
+
 let currentCharacterId = null;
 let currentRoute = { nodes: [], edges: [] };
 let mode = null;
 let selectedNodeForEdge = null;
+let selectedSystem = null;
 
 function logDebug(msg){ debugDiv.textContent += msg + '\n'; }
 
@@ -25,7 +31,7 @@ addEdgeBtn.addEventListener('click', ()=>{ mode="addEdge"; selectedNodeForEdge=n
 deleteNodeBtn.addEventListener('click', ()=>{ mode="deleteNode"; });
 deleteEdgeBtn.addEventListener('click', ()=>{ mode="deleteEdge"; selectedNodeForEdge=null; });
 
-// --- Загрузка маршрута ---
+// --- Загрузка персонажа ---
 loadCharacterBtn.addEventListener('click', ()=>{
   const id = characterIdInput.value.trim();
   if(!id) return;
@@ -114,9 +120,18 @@ function drawMap(route){
     // Клик по узлу
     circle.addEventListener('click', e=>{
       e.stopPropagation();
+
+      // --- Выбор узла для редактирования ---
+      selectedSystem = n;
+      sysIdInput.value = n.id || '';
+      sysClassInput.value = n.class || '';
+      sysEffectInput.value = n.effect || '';
+      sysStaticsInput.value = (n.statics || []).join(',');
+
       if(mode==="deleteNode"){
         currentRoute.edges=currentRoute.edges.filter(edge=>edge.from!==n.id && edge.to!==n.id);
         currentRoute.nodes=currentRoute.nodes.filter(node=>node.id!==n.id);
+        selectedSystem = null;
         drawMap(currentRoute);
         saveRoute();
       } else if(mode==="addEdge"){
@@ -145,7 +160,7 @@ function drawMap(route){
   });
 }
 
-// --- Сохранение маршрута на сервер ---
+// --- Сохранение маршрута ---
 async function saveRoute(){
   if(!currentCharacterId) return;
   try{
@@ -157,3 +172,16 @@ async function saveRoute(){
     logDebug('Route saved');
   }catch(e){ logDebug(`Error saving route: ${e}`); }
 }
+
+// --- Обновление системы через контейнер ---
+updateSystemBtn.addEventListener('click', ()=>{
+  if(!selectedSystem) return;
+
+  selectedSystem.id = sysIdInput.value.trim();
+  selectedSystem.class = sysClassInput.value.trim();
+  selectedSystem.effect = sysEffectInput.value.trim();
+  selectedSystem.statics = sysStaticsInput.value.split(',').map(s=>s.trim()).filter(s=>s);
+
+  drawMap(currentRoute);
+  saveRoute();
+});
