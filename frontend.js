@@ -1,35 +1,25 @@
 const backendUrl = 'https://eve-proxy.onrender.com';
 
-const mapDiv = document.getElementById('map');
-const debugDiv = document.getElementById('debug');
-
 const characterIdInput = document.getElementById('characterIdInput');
 const loadCharacterBtn = document.getElementById('loadCharacterBtn');
 
-const addNodeBtn = document.getElementById('addNodeBtn');
-const addEdgeBtn = document.getElementById('addEdgeBtn');
-const deleteNodeBtn = document.getElementById('deleteNodeBtn');
-const deleteEdgeBtn = document.getElementById('deleteEdgeBtn');
+const stepsContainer = document.getElementById('stepsContainer');
 
 const sysIdInput = document.getElementById('sysId');
 const sysClassInput = document.getElementById('sysClass');
 const sysEffectInput = document.getElementById('sysEffect');
 const sysStaticsInput = document.getElementById('sysStatics');
 const updateSystemBtn = document.getElementById('updateSystemBtn');
+const addSystemBtn = document.getElementById('addSystemBtn');
+
+const debugDiv = document.getElementById('debug');
 
 let currentCharacterId = null;
-let currentRoute = { nodes: [], edges: [] };
-let mode = null;
-let selectedNodeForEdge = null;
+let currentRoute = { steps: [] };
+let selectedStep = null;
 let selectedSystem = null;
 
-function logDebug(msg){ debugDiv.textContent += msg + '\n'; }
-
-// --- Режимы ---
-addNodeBtn.addEventListener('click', ()=>{ mode="addNode"; selectedNodeForEdge=null; });
-addEdgeBtn.addEventListener('click', ()=>{ mode="addEdge"; selectedNodeForEdge=null; });
-deleteNodeBtn.addEventListener('click', ()=>{ mode="deleteNode"; });
-deleteEdgeBtn.addEventListener('click', ()=>{ mode="deleteEdge"; selectedNodeForEdge=null; });
+function logDebug(msg){ debugDiv.textContent += msg+'\n'; }
 
 // --- Загрузка персонажа ---
 loadCharacterBtn.addEventListener('click', ()=>{
@@ -39,132 +29,87 @@ loadCharacterBtn.addEventListener('click', ()=>{
   loadRoute();
 });
 
-// --- Загрузка маршрута с сервера ---
+// --- Загрузка маршрута ---
 async function loadRoute(){
   if(!currentCharacterId) return;
   try{
     const resp = await fetch(`${backendUrl}/route/${currentCharacterId}`);
     if(!resp.ok) throw new Error(`HTTP error ${resp.status}`);
     currentRoute = await resp.json();
-    drawMap(currentRoute);
+    renderSteps();
     logDebug(`Loaded route for character ${currentCharacterId}`);
   }catch(e){ logDebug(`Error loading route: ${e}`); }
 }
 
-// --- Отрисовка карты ---
-function drawMap(route){
-  mapDiv.innerHTML='';
-  const svgNS="http://www.w3.org/2000/svg";
-  const svg=document.createElementNS(svgNS,"svg");
-  svg.setAttribute("width","100%");
-  svg.setAttribute("height","400px");
-  svg.setAttribute("style","background:#111");
-  mapDiv.appendChild(svg);
+// --- Рендер ступеней ---
+function renderSteps(){
+  stepsContainer.innerHTML='';
+  currentRoute.steps.forEach(step=>{
+    const stepDiv = document.createElement('div');
+    stepDiv.className='stepBox';
+    const h3 = document.createElement('h3');
+    h3.textContent = `Step ${step.step}`;
+    stepDiv.appendChild(h3);
 
-  const nodeMap={};
-  route.nodes.forEach(n=>nodeMap[n.id]=n);
+    step.systems.forEach(sys=>{
+      const sysDiv = document.createElement('div');
+      sysDiv.className='systemBox';
+      sysDiv.textContent = sys.id;
+      if(selectedSystem===sys) sysDiv.classList.add('selected');
 
-  // Edges
-  route.edges.forEach(e=>{
-    const from=nodeMap[e.from], to=nodeMap[e.to];
-    if(!from||!to) return;
-    const line=document.createElementNS(svgNS,"line");
-    line.setAttribute("x1",from.x); line.setAttribute("y1",from.y);
-    line.setAttribute("x2",to.x); line.setAttribute("y2",to.y);
-    line.setAttribute("stroke","#ffcc00");
-    line.setAttribute("stroke-width","2");
-    line.style.cursor="pointer";
-    line.addEventListener('click', evt=>{
-      evt.stopPropagation();
-      if(mode==="deleteEdge"){
-        currentRoute.edges=currentRoute.edges.filter(edge=>edge!==e);
-        drawMap(currentRoute);
-        saveRoute();
-      }
-    });
-    svg.appendChild(line);
-  });
+      sysDiv.addEventListener('click', ()=>{
+        selectedStep = step;
+        selectedSystem = sys;
+        sysIdInput.value = sys.id || '';
+        sysClassInput.value = sys.class || '';
+        sysEffectInput.value = sys.effect || '';
+        sysStaticsInput.value = (sys.statics||[]).join(',');
+        renderSteps();
+      });
 
-  // Nodes
-  route.nodes.forEach(n=>{
-    const circle=document.createElementNS(svgNS,"circle");
-    circle.setAttribute("cx",n.x); circle.setAttribute("cy",n.y); circle.setAttribute("r",10);
-    circle.setAttribute("fill","#00ccff");
-    circle.style.cursor="pointer";
-    svg.appendChild(circle);
-
-    const text=document.createElementNS(svgNS,"text");
-    text.setAttribute("x",n.x+12); text.setAttribute("y",n.y+4);
-    text.setAttribute("fill","#fff"); text.setAttribute("font-size","12");
-    text.textContent=n.id;
-    svg.appendChild(text);
-
-    // Перетаскивание
-    circle.addEventListener('mousedown', e=>{
-      e.stopPropagation();
-      const onMove=evt=>{
-        const rect=svg.getBoundingClientRect();
-        n.x=evt.clientX-rect.left;
-        n.y=evt.clientY-rect.top;
-        drawMap(currentRoute);
-      };
-      const onUp=()=>{
-        document.removeEventListener('mousemove',onMove);
-        document.removeEventListener('mouseup',onUp);
-        saveRoute();
-      };
-      document.addEventListener('mousemove',onMove);
-      document.addEventListener('mouseup',onUp);
+      stepDiv.appendChild(sysDiv);
     });
 
-    // Клик по узлу
-    circle.addEventListener('click', e=>{
-      e.stopPropagation();
-
-      // --- Выбор узла для редактирования ---
-      selectedSystem = n;
-      sysIdInput.value = n.id || '';
-      sysClassInput.value = n.class || '';
-      sysEffectInput.value = n.effect || '';
-      sysStaticsInput.value = (n.statics || []).join(',');
-
-      if(mode==="deleteNode"){
-        currentRoute.edges=currentRoute.edges.filter(edge=>edge.from!==n.id && edge.to!==n.id);
-        currentRoute.nodes=currentRoute.nodes.filter(node=>node.id!==n.id);
-        selectedSystem = null;
-        drawMap(currentRoute);
-        saveRoute();
-      } else if(mode==="addEdge"){
-        if(!selectedNodeForEdge) selectedNodeForEdge=n;
-        else{
-          currentRoute.edges.push({from:selectedNodeForEdge.id,to:n.id});
-          selectedNodeForEdge=null;
-          drawMap(currentRoute);
-          saveRoute();
-        }
-      }
-    });
-  });
-
-  // Добавление узла кликом по пустому месту
-  svg.addEventListener('click', e=>{
-    if(mode!=="addNode") return;
-    if(e.target.tagName !== 'svg') return;
-    const rect=svg.getBoundingClientRect();
-    const x=e.clientX-rect.left;
-    const y=e.clientY-rect.top;
-    const newId='J'+Math.floor(Math.random()*1000000);
-    currentRoute.nodes.push({id:newId,x,y});
-    drawMap(currentRoute);
-    saveRoute();
+    stepsContainer.appendChild(stepDiv);
   });
 }
+
+// --- Обновление системы ---
+updateSystemBtn.addEventListener('click', ()=>{
+  if(!selectedSystem) return;
+  selectedSystem.id = sysIdInput.value.trim();
+  selectedSystem.class = sysClassInput.value.trim();
+  selectedSystem.effect = sysEffectInput.value.trim();
+  selectedSystem.statics = sysStaticsInput.value.split(',').map(s=>s.trim()).filter(s=>s);
+  renderSteps();
+  saveRoute();
+});
+
+// --- Добавление системы ---
+addSystemBtn.addEventListener('click', ()=>{
+  if(!selectedStep) return;
+  const nextId = selectedStep.step*10 + selectedStep.systems.length + 1;
+  const newSys = {
+    id: nextId.toString(),
+    class: '',
+    effect: '',
+    statics: []
+  };
+  selectedStep.systems.push(newSys);
+  selectedSystem = newSys;
+  sysIdInput.value = newSys.id;
+  sysClassInput.value = '';
+  sysEffectInput.value = '';
+  sysStaticsInput.value = '';
+  renderSteps();
+  saveRoute();
+});
 
 // --- Сохранение маршрута ---
 async function saveRoute(){
   if(!currentCharacterId) return;
   try{
-    await fetch(`${backendUrl}/route/${currentCharacterId}`, {
+    await fetch(`${backendUrl}/route/${currentCharacterId}`,{
       method:'POST',
       headers:{'Content-Type':'application/json'},
       body: JSON.stringify(currentRoute)
@@ -173,15 +118,10 @@ async function saveRoute(){
   }catch(e){ logDebug(`Error saving route: ${e}`); }
 }
 
-// --- Обновление системы через контейнер ---
-updateSystemBtn.addEventListener('click', ()=>{
-  if(!selectedSystem) return;
-
-  selectedSystem.id = sysIdInput.value.trim();
-  selectedSystem.class = sysClassInput.value.trim();
-  selectedSystem.effect = sysEffectInput.value.trim();
-  selectedSystem.statics = sysStaticsInput.value.split(',').map(s=>s.trim()).filter(s=>s);
-
-  drawMap(currentRoute);
+// --- Добавление ступени (по Ctrl+Click на кнопку Load Character) ---
+loadCharacterBtn.addEventListener('dblclick', ()=>{
+  const nextStep = currentRoute.steps.length + 1;
+  currentRoute.steps.push({ step: nextStep, systems: [] });
+  renderSteps();
   saveRoute();
 });
