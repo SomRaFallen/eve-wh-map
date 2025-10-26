@@ -1,5 +1,4 @@
-// frontend.js
-const backendUrl = 'https://eve-proxy.onrender.com'; // URL сервера Render
+const backendUrl = 'https://eve-proxy.onrender.com';
 const clientId = '5a40c55151c241e3a007f2562fd4e1dd';
 const redirectUri = 'https://somrafallen.github.io/eve-wh-map/';
 
@@ -7,12 +6,25 @@ const loginBtn = document.getElementById('loginBtn');
 const characterInfo = document.getElementById('characterInfo');
 const killsDiv = document.getElementById('kills');
 
-// Генерация случайной строки для state
+// Добавляем мини-лог на страницу
+const logDiv = document.createElement('pre');
+logDiv.style.textAlign = 'left';
+logDiv.style.marginTop = '20px';
+logDiv.style.padding = '10px';
+logDiv.style.background = '#111';
+logDiv.style.border = '1px solid #555';
+logDiv.style.overflowX = 'auto';
+document.body.appendChild(logDiv);
+
+function log(message) {
+  console.log(message);
+  logDiv.textContent += message + '\n';
+}
+
 function generateState() {
   return Math.random().toString(36).substring(2, 15);
 }
 
-// OAuth login
 loginBtn.addEventListener('click', () => {
   const state = generateState();
   const authUrl = `https://login.eveonline.com/v2/oauth/authorize/?response_type=code&redirect_uri=${encodeURIComponent(
@@ -21,7 +33,6 @@ loginBtn.addEventListener('click', () => {
   window.location.href = authUrl;
 });
 
-// После редиректа EVE Online
 async function handleAuth() {
   const urlParams = new URLSearchParams(window.location.search);
   const code = urlParams.get('code');
@@ -34,12 +45,16 @@ async function handleAuth() {
       body: JSON.stringify({ code }),
     });
 
+    log(`HTTP status: ${resp.status}`);
+
+    let text = await resp.text();
+    log('Raw response from server:\n' + text);
+
     let data;
     try {
-      data = await resp.json();
-    } catch (jsonErr) {
-      const text = await resp.text();
-      characterInfo.innerText = '❌ Server returned invalid JSON:\n' + text;
+      data = JSON.parse(text);
+    } catch {
+      characterInfo.innerText = '❌ Server returned non-JSON response. See log below.';
       return;
     }
 
@@ -58,9 +73,10 @@ async function handleAuth() {
     killsDiv.innerHTML = '<h3>Last 10 Kills:</h3>' + killsData.map(k => `
       <p>${k.date}: ${k.ship} in ${k.solarSystem}</p>
     `).join('');
+
   } catch (e) {
     characterInfo.innerText = '❌ Error fetching character info';
-    console.error(e);
+    log('Exception:\n' + e);
   }
 }
 
