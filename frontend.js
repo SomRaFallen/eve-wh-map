@@ -1,4 +1,5 @@
-const backendUrl = 'http://localhost:3000'; // или твой URL на Render
+// --- Настройка ---
+const backendUrl = 'https://eve-proxy.onrender.com'; // твой сервер на Render
 
 const mapDiv = document.getElementById('map');
 const debugDiv = document.getElementById('debug');
@@ -24,7 +25,7 @@ addEdgeBtn.addEventListener('click', ()=>{ mode="addEdge"; selectedNodeForEdge=n
 deleteNodeBtn.addEventListener('click', ()=>{ mode="deleteNode"; });
 deleteEdgeBtn.addEventListener('click', ()=>{ mode="deleteEdge"; selectedNodeForEdge=null; });
 
-// --- Load Character ---
+// --- Загрузка маршрута ---
 loadCharacterBtn.addEventListener('click', ()=>{
   const id = characterIdInput.value.trim();
   if(!id) return;
@@ -32,18 +33,19 @@ loadCharacterBtn.addEventListener('click', ()=>{
   loadRoute();
 });
 
-// --- Load route from server ---
+// --- Загрузка маршрута с сервера ---
 async function loadRoute(){
   if(!currentCharacterId) return;
   try{
     const resp = await fetch(`${backendUrl}/route/${currentCharacterId}`);
+    if(!resp.ok) throw new Error(`HTTP error ${resp.status}`);
     currentRoute = await resp.json();
     drawMap(currentRoute);
     logDebug(`Loaded route for character ${currentCharacterId}`);
   }catch(e){ logDebug(`Error loading route: ${e}`); }
 }
 
-// --- Draw map ---
+// --- Отрисовка карты ---
 function drawMap(route){
   mapDiv.innerHTML='';
   const svgNS="http://www.w3.org/2000/svg";
@@ -143,7 +145,7 @@ function drawMap(route){
   });
 }
 
-// --- Save route ---
+// --- Сохранение маршрута на сервер ---
 async function saveRoute(){
   if(!currentCharacterId) return;
   try{
