@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>EVE WH Map</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="controls">
+    <button id="loginBtn">Авторизация</button>
+    <input type="text" id="systemInput" placeholder="Введите номер системы">
+    <select id="systemType">
+      <option value="wh">WH</option>
+      <option value="low">Low</option>
+      <option value="hi">Hi</option>
+      <option value="null">0.0</option>
+    </select>
+    <button id="addSystemBtn">Добавить систему</button>
+  </div>
+  <div id="mapContainer"></div>
+  <div id="infoPanel">
+    <h3>Информация о системе</h3>
+    <div id="infoContent">Нажмите на систему</div>
+  </div>
+
+<script src="frontend.js"></script>
+</body>
+</html>
