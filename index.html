@@ -2,17 +2,24 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>EVE WH Map (no auth)</title>
+  <title>EVE WH Map Editable</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <h1>EVE WH Map (No Auth)</h1>
+  <h1>EVE WH Map (Editable)</h1>
+
+  <input type="text" id="searchInput" placeholder="Search character">
+  <button id="searchBtn">Search</button>
+  <select id="characterSelect"></select>
 
   <h2>Character Info</h2>
   <div id="characterInfo"></div>
 
   <h2>Last 10 Kills</h2>
   <div id="kills"></div>
+
+  <h2>Wormhole Map</h2>
+  <div id="map"></div>
 
   <h2>Debug</h2>
   <pre id="debug"></pre>
