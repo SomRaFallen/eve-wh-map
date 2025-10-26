@@ -1,35 +1,32 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>EVE WH Map</title>
-  <link rel="stylesheet" href="style.css">
+<meta charset="UTF-8">
+<title>EVE WH Map - Steps</title>
+<link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <h1>EVE WH Map</h1>
+<h1>EVE WH Map (Steps)</h1>
 
-  <div id="systemInfoContainer">
-    <h2>System Info</h2>
-    <label>System ID: <input type="text" id="sysId"></label>
-    <label>Class: <input type="text" id="sysClass"></label>
-    <label>Effect: <input type="text" id="sysEffect"></label>
-    <label>Statics (comma): <input type="text" id="sysStatics"></label>
-    <button id="updateSystemBtn">Update System</button>
-  </div>
-
-  <h2>Select Character</h2>
+<div id="characterContainer">
   <input type="text" id="characterIdInput" placeholder="Character ID">
   <button id="loadCharacterBtn">Load Route</button>
+</div>
 
-  <h2>Map Controls</h2>
-  <button id="addNodeBtn">Add Node</button>
-  <button id="addEdgeBtn">Add Edge</button>
-  <button id="deleteNodeBtn">Delete Node</button>
-  <button id="deleteEdgeBtn">Delete Edge</button>
+<div id="stepsContainer"></div>
 
-  <div id="map"></div>
-  <pre id="debug"></pre>
+<div id="systemInfoContainer">
+  <h2>System Info</h2>
+  <label>System ID: <input type="text" id="sysId"></label>
+  <label>Class: <input type="text" id="sysClass"></label>
+  <label>Effect: <input type="text" id="sysEffect"></label>
+  <label>Statics (comma): <input type="text" id="sysStatics"></label>
+  <button id="updateSystemBtn">Update System</button>
+  <button id="addSystemBtn">Add System</button>
+</div>
 
-  <script src="frontend.js"></script>
+<pre id="debug"></pre>
+
+<script src="frontend.js"></script>
 </body>
 </html>
